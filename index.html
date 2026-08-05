@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Bakery Cost Book</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- ============================================================
+     LOGIN SCREEN
+     ============================================================ -->
+<div id="login-screen">
+  <div class="login-card">
+    <span class="display">Bakery Cost Book</span>
+    <span class="tag">Private admin access</span>
+    <form id="login-form">
+      <label>Email</label>
+      <input type="email" id="login-email" required autocomplete="username" />
+      <label>Password</label>
+      <input type="password" id="login-password" required autocomplete="current-password" minlength="6" />
+      <button type="submit" class="btn btn-primary">Log in</button>
+    </form>
+    <div id="login-error"></div>
+    <div id="login-note"></div>
+    <div class="login-toggle">
+      <span id="toggle-text">First time here?</span>
+      <button id="toggle-mode" type="button">Create your account</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================
+     MAIN APP
+     ============================================================ -->
+<div id="app">
+  <header class="topbar">
+    <div class="brand">
+      <span class="display">Bakery Cost Book</span>
+      <span class="tag">admin</span>
+    </div>
+    <button class="signout" id="signout-btn">Sign out</button>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab-btn active" data-view="ingredients">Ingredients</button>
+    <button class="tab-btn" data-view="recipes">Cake Menu &amp; Recipes</button>
+  </nav>
+
+  <main>
+    <!-- ============ INGREDIENTS VIEW ============ -->
+    <section class="view active" id="view-ingredients">
+      <div class="view-head">
+        <div>
+          <h2>Ingredients</h2>
+          <p class="sub">Every price you enter here is timestamped — old recipes always keep the price that was active when you built them.</p>
+        </div>
+        <button class="btn btn-rose" id="add-ingredient-btn">+ Add ingredient</button>
+      </div>
+      <div class="grid" id="ingredients-grid"></div>
+    </section>
+
+    <!-- ============ RECIPES VIEW ============ -->
+    <section class="view" id="view-recipes">
+      <div class="view-head">
+        <div>
+          <h2>Cake Menu &amp; Recipes</h2>
+          <p class="sub">Build a recipe from your ingredients — cost is calculated automatically.</p>
+        </div>
+        <button class="btn btn-rose" id="add-recipe-btn">+ New recipe</button>
+      </div>
+      <div class="grid" id="recipes-grid"></div>
+    </section>
+  </main>
+</div>
+
+<!-- ============================================================
+     MODAL: Add / Edit Ingredient
+     ============================================================ -->
+<div class="overlay" id="ingredient-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="ingredient-modal-title">Add ingredient</h2>
+      <button data-close="ingredient-modal">✕</button>
+    </div>
+    <form id="ingredient-form">
+      <input type="hidden" id="ing-id" />
+      <label>Photo</label>
+      <input type="file" id="ing-image" accept="image/*" />
+
+      <label>Ingredient name</label>
+      <input type="text" id="ing-name" placeholder="e.g. Dano Full Cream Milk Powder" required />
+
+      <label>Category</label>
+      <select id="ing-category"></select>
+
+      <div class="row3">
+        <div>
+          <label>Package size</label>
+          <input type="number" id="ing-package-qty" placeholder="1000" min="0" step="any" required />
+        </div>
+        <div>
+          <label>Unit</label>
+          <select id="ing-base-unit">
+            <option value="g">grams (g)</option>
+            <option value="ml">millilitres (ml)</option>
+            <option value="piece">piece</option>
+          </select>
+        </div>
+        <div>
+          <label>Price paid (tk)</label>
+          <input type="number" id="ing-package-price" placeholder="70" min="0" step="any" required />
+        </div>
+      </div>
+
+      <div class="unit-price-preview" id="unit-price-preview">
+        Cost works out to <b id="unit-price-value">—</b> per unit
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" data-close="ingredient-modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save ingredient</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: Add / Edit Recipe
+     ============================================================ -->
+<div class="overlay" id="recipe-modal">
+  <div class="modal wide">
+    <div class="modal-head">
+      <h2 id="recipe-modal-title">New recipe</h2>
+      <button data-close="recipe-modal">✕</button>
+    </div>
+    <form id="recipe-form">
+      <input type="hidden" id="rec-id" />
+      <label>Photo</label>
+      <input type="file" id="rec-image" accept="image/*" />
+
+      <label>Cake / recipe name</label>
+      <input type="text" id="rec-name" placeholder="e.g. Vanilla 1 Pound Cake" required />
+
+      <label>Ingredients used</label>
+      <div id="rlines"></div>
+      <button type="button" class="btn btn-outline btn-sm" id="add-rline">+ Add ingredient line</button>
+
+      <div class="row3" style="margin-top:18px;">
+        <div>
+          <label>Yields how many units?</label>
+          <input type="number" id="rec-yield" value="1" min="1" step="1" required />
+        </div>
+        <div>
+          <label>Packaging cost (tk)</label>
+          <input type="number" id="rec-packaging" value="0" min="0" step="any" />
+        </div>
+        <div>
+          <label>Delivery cost (tk)</label>
+          <input type="number" id="rec-delivery" value="0" min="0" step="any" />
+        </div>
+      </div>
+      <label>Selling price per unit (tk)</label>
+      <input type="number" id="rec-selling" placeholder="500" min="0" step="any" />
+
+      <div class="cost-summary" id="recipe-cost-summary"></div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" data-close="recipe-modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save recipe</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
