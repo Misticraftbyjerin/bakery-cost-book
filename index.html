@@ -60,6 +60,7 @@
         </div>
         <button class="btn btn-rose" id="add-ingredient-btn">+ Add ingredient</button>
       </div>
+      <input type="text" id="ingredient-search" class="search-bar" placeholder="Search ingredients by name or code…" />
       <div class="grid" id="ingredients-grid"></div>
     </section>
 
@@ -93,6 +94,9 @@
 
       <label>Ingredient name</label>
       <input type="text" id="ing-name" placeholder="e.g. Dano Full Cream Milk Powder" required />
+
+      <label>Item code <span class="opt">(optional — handy when you stock the same ingredient from different brands)</span></label>
+      <input type="text" id="ing-code" placeholder="e.g. FLOUR-TEER, FLOUR-ACI" />
 
       <label>Category</label>
       <select id="ing-category"></select>

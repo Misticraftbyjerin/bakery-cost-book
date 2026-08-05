@@ -120,19 +120,32 @@ async function loadIngredients() {
   renderIngredients();
 }
 
-function renderIngredients() {
+function renderIngredients(filterText = "") {
   const grid = $("ingredients-grid");
+  const term = filterText.trim().toLowerCase();
+  const filtered = term
+    ? ingredients.filter(
+        (ing) =>
+          ing.name.toLowerCase().includes(term) ||
+          (ing.item_code && ing.item_code.toLowerCase().includes(term))
+      )
+    : ingredients;
+
   if (!ingredients.length) {
     grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="display">No ingredients yet</div>Add your first one to start building recipes.</div>`;
     return;
   }
-  grid.innerHTML = ingredients
+  if (!filtered.length) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="display">No matches</div>Try a different search term.</div>`;
+    return;
+  }
+  grid.innerHTML = filtered
     .map(
       (ing) => `
     <div class="ing-card">
       <div class="thumb">${ing.image_url ? `<img src="${ing.image_url}">` : "🧂"}</div>
       <div class="body">
-        <div class="name">${ing.name}</div>
+        <div class="name">${ing.name}${ing.item_code ? `<span class="code-tag">${ing.item_code}</span>` : ""}</div>
         <div class="cat">${ing.categories?.name || "Uncategorized"}</div>
         <div class="price-row">
           <span class="price-tag">${fmt(ing.unit_price)} tk/${ing.base_unit}</span>
@@ -146,6 +159,8 @@ function renderIngredients() {
     )
     .join("");
 }
+
+$("ingredient-search").addEventListener("input", (e) => renderIngredients(e.target.value));
 
 function computeUnitPricePreview() {
   const qty = parseFloat($("ing-package-qty").value);
@@ -169,6 +184,7 @@ function openIngredientModal(ing = null) {
   $("ingredient-modal-title").textContent = ing ? "Edit ingredient" : "Add ingredient";
   if (ing) {
     $("ing-name").value = ing.name;
+    $("ing-code").value = ing.item_code || "";
     $("ing-category").value = ing.category_id || "";
     $("ing-package-qty").value = ing.package_qty;
     $("ing-base-unit").value = ing.base_unit;
@@ -209,6 +225,7 @@ $("ingredient-form").addEventListener("submit", async (e) => {
 
   const payload = {
     name: $("ing-name").value.trim(),
+    item_code: $("ing-code").value.trim() || null,
     category_id: $("ing-category").value || null,
     base_unit: $("ing-base-unit").value,
     package_qty,
@@ -338,40 +355,82 @@ function openRecipeModal(recipe = null) {
 
 function addRecipeLine(existing = null) {
   recipeLineCount++;
-  const lineId = "rline-" + recipeLineCount;
   const div = document.createElement("div");
   div.className = "rline";
-  div.id = lineId;
+  div.id = "rline-" + recipeLineCount;
 
-  const options = ingredients
-    .map((ing) => {
-      const selected = existing && existing.ingredient_id === ing.id ? "selected" : "";
-      return `<option value="${ing.id}" data-price="${ing.unit_price}" data-unit="${ing.base_unit}" ${selected}>${ing.name}</option>`;
-    })
-    .join("");
+  const initialIng = existing ? ingredients.find((i) => i.id === existing.ingredient_id) : null;
+
+  // "committed" selection — what actually gets saved/calculated.
+  // For an existing line, price starts as the ORIGINAL snapshot, not today's price —
+  // it only changes to today's price if the baker actively re-picks the ingredient.
+  div._ingId = existing ? existing.ingredient_id : null;
+  div._ingName = existing ? (initialIng ? initialIng.name : existing.ingredient_name_snapshot + " (deleted)") : "";
+  div._ingUnit = initialIng ? initialIng.base_unit : "";
+  div._ingPrice = existing ? existing.unit_price_snapshot : 0;
 
   div.innerHTML = `
-    <select class="rline-ing">${options}</select>
+    <div class="ing-picker">
+      <input type="text" class="ing-search" placeholder="Search ingredient or code…" autocomplete="off" value="${div._ingName}" />
+      <div class="ing-dropdown"></div>
+    </div>
     <input type="number" class="qty-input rline-qty" placeholder="qty" min="0" step="any" value="${existing ? existing.quantity : ""}" />
-    <span class="rline-unit hint">${existing ? "" : ""}</span>
+    <span class="rline-unit hint">${div._ingUnit}</span>
     <span class="line-cost">0.00 tk</span>
     <button type="button" class="remove">✕</button>
   `;
   $("rlines").appendChild(div);
 
-  const select = div.querySelector(".rline-ing");
+  const searchInput = div.querySelector(".ing-search");
+  const dropdown = div.querySelector(".ing-dropdown");
   const qtyInput = div.querySelector(".rline-qty");
   const unitLabel = div.querySelector(".rline-unit");
 
-  function refreshUnit() {
-    const opt = select.options[select.selectedIndex];
-    unitLabel.textContent = opt ? opt.dataset.unit : "";
+  function renderDropdown(term) {
+    const t = term.trim().toLowerCase();
+    const matches = ingredients
+      .filter((ing) => !t || ing.name.toLowerCase().includes(t) || (ing.item_code && ing.item_code.toLowerCase().includes(t)))
+      .slice(0, 8);
+
+    dropdown.innerHTML = matches.length
+      ? matches
+          .map(
+            (ing) => `
+        <div class="ing-option" data-id="${ing.id}">
+          <span class="opt-name">${ing.name}${ing.item_code ? `<span class="code-tag">${ing.item_code}</span>` : ""}</span>
+          <span class="opt-meta">${fmt(ing.unit_price)} tk/${ing.base_unit}</span>
+        </div>`
+          )
+          .join("")
+      : `<div class="ing-option no-match">No ingredients match</div>`;
+    dropdown.classList.add("open");
+
+    dropdown.querySelectorAll(".ing-option[data-id]").forEach((opt) => {
+      opt.addEventListener("click", () => {
+        const ing = ingredients.find((i) => i.id === opt.dataset.id);
+        div._ingId = ing.id;
+        div._ingName = ing.name;
+        div._ingUnit = ing.base_unit;
+        // re-picking the SAME ingredient keeps its original price; picking a DIFFERENT one uses today's price
+        div._ingPrice = existing && ing.id === existing.ingredient_id ? existing.unit_price_snapshot : ing.unit_price;
+        searchInput.value = ing.name;
+        unitLabel.textContent = ing.base_unit;
+        dropdown.classList.remove("open");
+        updateCostSummary();
+      });
+    });
   }
-  refreshUnit();
-  select.addEventListener("change", () => {
-    refreshUnit();
-    updateCostSummary();
+
+  searchInput.addEventListener("focus", () => renderDropdown(""));
+  searchInput.addEventListener("input", () => renderDropdown(searchInput.value));
+  searchInput.addEventListener("blur", () => {
+    // small delay so a click on a dropdown option registers before we close/revert
+    setTimeout(() => {
+      searchInput.value = div._ingName || "";
+      dropdown.classList.remove("open");
+    }, 150);
   });
+
   qtyInput.addEventListener("input", updateCostSummary);
   div.querySelector(".remove").addEventListener("click", () => {
     div.remove();
@@ -386,15 +445,13 @@ $("add-rline").addEventListener("click", () => {
 
 function getRecipeLinesData() {
   return Array.from($("rlines").children).map((div) => {
-    const select = div.querySelector(".rline-ing");
-    const opt = select.options[select.selectedIndex];
     const qty = parseFloat(div.querySelector(".rline-qty").value) || 0;
-    const unit_price = opt ? parseFloat(opt.dataset.price) : 0;
+    const unit_price = div._ingPrice || 0;
     const lineCost = qty * unit_price;
     div.querySelector(".line-cost").textContent = fmt(lineCost) + " tk";
     return {
-      ingredient_id: opt ? opt.value : null,
-      ingredient_name_snapshot: opt ? opt.textContent : "",
+      ingredient_id: div._ingId,
+      ingredient_name_snapshot: div._ingName,
       quantity: qty,
       unit_price_snapshot: unit_price,
       line_cost: lineCost,

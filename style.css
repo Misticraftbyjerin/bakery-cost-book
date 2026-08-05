@@ -162,6 +162,28 @@ main {
    ============================================================ */
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
 
+.search-bar {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  padding: 11px 18px;
+  font-size: 14px;
+  background: var(--card);
+  color: var(--ink);
+  margin-bottom: 18px;
+}
+.search-bar:focus { outline: 2px solid var(--rose); outline-offset: 1px; }
+
+.code-tag {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10.5px;
+  color: var(--rose-dark);
+  background: #FBEAE8;
+  padding: 2px 6px;
+  border-radius: 5px;
+  margin-left: 6px;
+}
+
 .ing-card, .recipe-card {
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -239,6 +261,7 @@ main {
 
 label { display: block; font-size: 12.5px; font-weight: 600; color: var(--ink-soft); margin: 14px 0 6px; text-transform: uppercase; letter-spacing: 0.03em; }
 label:first-child { margin-top: 0; }
+label .opt { text-transform: none; font-weight: 400; font-size: 11.5px; letter-spacing: normal; color: var(--ink-soft); }
 input[type=text], input[type=number], input[type=email], input[type=password], select, textarea {
   width: 100%;
   border: 1px solid var(--line);
@@ -281,10 +304,51 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--rose); outl
   gap: 8px;
   align-items: center;
   margin-bottom: 8px;
+  position: relative;
 }
 .rline .line-cost { font-family: 'JetBrains Mono', monospace; font-size: 13px; text-align: right; color: var(--ink-soft); }
 .rline button.remove { background: none; border: none; color: var(--ink-soft); font-size: 16px; }
 .rline button.remove:hover { color: var(--danger); }
+
+.ing-picker { position: relative; }
+.ing-picker input.ing-search {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 12px;
+  font-size: 13.5px;
+  background: var(--paper);
+  color: var(--ink);
+}
+.ing-picker input.ing-search:focus { outline: 2px solid var(--rose); outline-offset: 1px; }
+.ing-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0; right: 0;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 10px 28px rgba(43,36,32,0.18);
+  max-height: 220px;
+  overflow-y: auto;
+  z-index: 40;
+}
+.ing-dropdown.open { display: block; }
+.ing-option {
+  padding: 9px 12px;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.ing-option:hover, .ing-option.highlighted { background: #F6EFE3; }
+.ing-option .opt-name { font-weight: 500; }
+.ing-option .opt-meta { font-size: 11px; color: var(--ink-soft); white-space: nowrap; }
+.ing-option.no-match { color: var(--ink-soft); cursor: default; }
+.ing-option.no-match:hover { background: none; }
 
 .cost-summary {
   margin-top: 18px;

@@ -121,3 +121,20 @@ This is the link you can share with customers — on Facebook, WhatsApp status, 
 
 ### What's next
 Phase 3 will turn "Call to order" into an actual order form that pings you on Telegram the moment someone orders — including their chosen add-ons (like your vanilla cake color options).
+
+---
+
+# Phase 2b — Search bar & item codes
+
+Small quality-of-life update to the admin panel:
+- A search bar on the Ingredients tab (search by name or code)
+- A searchable picker when adding ingredients to a recipe (type to filter instead of scrolling a long list)
+- An optional **item code** field per ingredient — handy when you carry the same ingredient from different brands (e.g. flour from two suppliers) and need to tell them apart at a glance
+
+### To install this update
+1. Run `phase2b-migration.sql` in Supabase SQL Editor (adds the item code field — takes a few seconds)
+2. Re-upload `index.html`, `app.js`, `style.css` to GitHub (these 3 changed)
+3. Netlify redeploys automatically
+
+### A note on price history and editing recipes
+When you edit and re-save an existing recipe, any ingredient line you **don't touch** keeps its original saved price — exactly like before. Only a line where you actively search and re-pick an ingredient will pull in today's price. This means it's safe to open an old recipe just to tick "show on menu" or add a description — it won't quietly change your ingredient costs.
