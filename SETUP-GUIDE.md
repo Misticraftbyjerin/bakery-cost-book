@@ -78,8 +78,46 @@ Any time I give you updated code, you just re-upload the changed files to GitHub
 - **Price history is automatic** — every time you change an ingredient's price, the app quietly logs it. Existing recipes keep the cost they were built with; only new or freshly-edited recipes use the new price.
 
 ## What's coming in later phases
-- Customer-facing menu page
 - Order form + Telegram notifications
 - Dashboard analytics (best-sellers, most costly ingredient, profit trends over time)
 
 If anything doesn't work or a step is confusing, tell me exactly where you got stuck and I'll help you fix it.
+
+---
+
+# Phase 2 — Customer-facing menu page
+
+This adds a public page (no login needed) where visitors can see your cakes, photos, prices, and a "Call to order" button. It does **not** show your ingredient costs, packaging cost, or margins — customers only ever see name, photo, description, price, and delivery time.
+
+### Step 1 — Run the Phase 2 database update
+1. In Supabase, go to **SQL Editor** → **New query**.
+2. Copy everything from `phase2-migration.sql` and paste it in, then click **Run**.
+3. This adds a "show on menu" switch to each recipe, and creates a safe public view that only exposes customer-facing info.
+
+### Step 2 — Add your phone number
+Open `config.js` and fill in these two lines with your real details:
+```js
+const BUSINESS_PHONE = "+8801XXXXXXXXX";   // your number, with country code, no spaces
+const BUSINESS_NAME = "Your Bakery Name";
+```
+
+### Step 3 — Re-upload the changed/new files to GitHub
+Upload these files (they either changed or are brand new):
+`config.js`, `index.html`, `app.js`, `style.css`, `menu.html`, `menu.css`, `menu.js`
+
+Netlify will auto-redeploy within a minute or two.
+
+### Step 4 — Mark cakes as visible on the menu
+1. Log into your admin site as usual.
+2. Open each recipe (Edit), fill in the new **Customer-facing description** and **Delivery time** fields, tick **"Show this cake on my public menu page"**, and save.
+3. Only recipes with this box ticked will appear on the public menu — everything else stays private to you.
+
+### Step 5 — View your public menu
+Your customer menu lives at:
+```
+https://your-site-name.netlify.app/menu.html
+```
+This is the link you can share with customers — on Facebook, WhatsApp status, Instagram bio, anywhere. It needs no login and shows nothing about your costs.
+
+### What's next
+Phase 3 will turn "Call to order" into an actual order form that pings you on Telegram the moment someone orders — including their chosen add-ons (like your vanilla cake color options).

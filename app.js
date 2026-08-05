@@ -286,6 +286,7 @@ function renderRecipes() {
         <div class="body">
           <div class="name">${r.name}</div>
           <div class="cost-tag">Cost/unit: ${fmt(perUnit)} tk ${r.yield_count > 1 ? `· makes ${r.yield_count}` : ""}</div>
+          <div class="hint" style="margin-top:4px;">${r.show_on_menu ? "🟢 On public menu" : "⚪ Not on menu"}</div>
           <div style="margin-top:6px;">
             ${r.selling_price ? `<span class="price-tag big">${fmt(r.selling_price)} tk</span> ${marginBadge}` : `<span class="hint">No selling price set</span>`}
           </div>
@@ -324,6 +325,9 @@ function openRecipeModal(recipe = null) {
     $("rec-packaging").value = recipe.packaging_cost;
     $("rec-delivery").value = recipe.delivery_cost;
     $("rec-selling").value = recipe.selling_price || "";
+    $("rec-description").value = recipe.description || "";
+    $("rec-delivery-time").value = recipe.delivery_time || "";
+    $("rec-show-menu").checked = !!recipe.show_on_menu;
     recipe.recipe_ingredients.forEach((li) => addRecipeLine(li));
   } else {
     addRecipeLine();
@@ -447,6 +451,9 @@ $("recipe-form").addEventListener("submit", async (e) => {
     packaging_cost: parseFloat($("rec-packaging").value) || 0,
     delivery_cost: parseFloat($("rec-delivery").value) || 0,
     selling_price: parseFloat($("rec-selling").value) || null,
+    description: $("rec-description").value.trim() || null,
+    delivery_time: $("rec-delivery-time").value.trim() || null,
+    show_on_menu: $("rec-show-menu").checked,
     updated_at: new Date().toISOString(),
   };
 

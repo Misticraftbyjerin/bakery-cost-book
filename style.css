@@ -266,6 +266,14 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--rose); outl
 
 .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
 
+.toggle-label {
+  display: flex; align-items: center; gap: 8px;
+  text-transform: none; font-size: 13.5px; font-weight: 500; color: var(--ink);
+  background: #F6EFE3; border: 1px solid var(--line); border-radius: 8px;
+  padding: 10px 12px; margin-top: 16px; cursor: pointer;
+}
+.toggle-label input { width: 16px; height: 16px; accent-color: var(--rose); }
+
 /* Recipe builder ingredient line */
 .rline {
   display: grid;
