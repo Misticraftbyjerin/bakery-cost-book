@@ -47,7 +47,8 @@
 
   <nav class="tabs">
     <button class="tab-btn active" data-view="ingredients">Ingredients</button>
-    <button class="tab-btn" data-view="recipes">Cake Menu &amp; Recipes</button>
+    <button class="tab-btn" data-view="recipes">Cakes &amp; Costing</button>
+    <button class="tab-btn" data-view="sales">Sales</button>
   </nav>
 
   <main>
@@ -68,14 +69,80 @@
     <section class="view" id="view-recipes">
       <div class="view-head">
         <div>
-          <h2>Cake Menu &amp; Recipes</h2>
+          <h2>Cakes &amp; Costing</h2>
           <p class="sub">Build a recipe from your ingredients — cost is calculated automatically.</p>
         </div>
         <button class="btn btn-rose" id="add-recipe-btn">+ New recipe</button>
       </div>
       <div class="grid" id="recipes-grid"></div>
     </section>
+
+    <!-- ============ SALES VIEW ============ -->
+    <section class="view" id="view-sales">
+      <div class="view-head">
+        <div>
+          <h2>Sales</h2>
+          <p class="sub">Log every sale to track revenue, cost, and profit over time.</p>
+        </div>
+        <button class="btn btn-rose" id="add-sale-btn">+ Log a sale</button>
+      </div>
+
+      <div class="summary-cards" id="sales-summary"></div>
+
+      <div class="table-wrap">
+        <table class="sales-table" id="sales-table">
+          <thead>
+            <tr>
+              <th>Date</th><th>Cake</th><th>Qty</th><th>Revenue</th><th>Cost</th><th>Profit</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="sales-tbody"></tbody>
+        </table>
+      </div>
+    </section>
   </main>
+</div>
+
+<!-- ============================================================
+     MODAL: Log / Edit Sale
+     ============================================================ -->
+<div class="overlay" id="sale-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="sale-modal-title">Log a sale</h2>
+      <button data-close="sale-modal">✕</button>
+    </div>
+    <form id="sale-form">
+      <input type="hidden" id="sale-id" />
+      <label>Cake</label>
+      <select id="sale-recipe" required></select>
+
+      <div class="row3">
+        <div>
+          <label>Quantity sold</label>
+          <input type="number" id="sale-qty" value="1" min="0.01" step="any" required />
+        </div>
+        <div>
+          <label>Price per unit (tk)</label>
+          <input type="number" id="sale-price" min="0" step="any" required />
+        </div>
+        <div>
+          <label>Date</label>
+          <input type="date" id="sale-date" required />
+        </div>
+      </div>
+
+      <label>Notes <span class="opt">(optional — customer, occasion, discount reason, etc.)</span></label>
+      <textarea id="sale-notes" rows="2"></textarea>
+
+      <div class="unit-price-preview" id="sale-preview"></div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" data-close="sale-modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save sale</button>
+      </div>
+    </form>
+  </div>
 </div>
 
 <!-- ============================================================
@@ -155,6 +222,10 @@
 
       <div class="row3" style="margin-top:18px;">
         <div>
+          <label>Cake size</label>
+          <input type="text" id="rec-size" placeholder="e.g. 1 pound" />
+        </div>
+        <div>
           <label>Yields how many units?</label>
           <input type="number" id="rec-yield" value="1" min="1" step="1" required />
         </div>
@@ -162,23 +233,13 @@
           <label>Packaging cost (tk)</label>
           <input type="number" id="rec-packaging" value="0" min="0" step="any" />
         </div>
-        <div>
-          <label>Delivery cost (tk)</label>
-          <input type="number" id="rec-delivery" value="0" min="0" step="any" />
-        </div>
       </div>
+      <label>Delivery cost (tk)</label>
+      <input type="number" id="rec-delivery" value="0" min="0" step="any" />
       <label>Selling price per unit (tk)</label>
       <input type="number" id="rec-selling" placeholder="500" min="0" step="any" />
 
       <div class="cost-summary" id="recipe-cost-summary"></div>
-
-      <label>Customer-facing description</label>
-      <textarea id="rec-description" rows="3" placeholder="e.g. Soft vanilla sponge with fresh cream frosting — a customer-friendly description, no cost details."></textarea>
-
-      <label>Delivery time</label>
-      <input type="text" id="rec-delivery-time" placeholder="e.g. 1-2 days notice" />
-
-      <label class="toggle-label"><input type="checkbox" id="rec-show-menu" /> Show this cake on my public menu page</label>
 
       <div class="modal-actions">
         <button type="button" class="btn btn-outline" data-close="recipe-modal">Cancel</button>

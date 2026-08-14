@@ -75,6 +75,7 @@ async function onLoggedIn(user) {
   await loadCategories();
   await loadIngredients();
   await loadRecipes();
+  await loadSales();
 }
 
 // check existing session on page load
@@ -303,7 +304,6 @@ function renderRecipes() {
         <div class="body">
           <div class="name">${r.name}</div>
           <div class="cost-tag">Cost/unit: ${fmt(perUnit)} tk ${r.yield_count > 1 ? `· makes ${r.yield_count}` : ""}</div>
-          <div class="hint" style="margin-top:4px;">${r.show_on_menu ? "🟢 On public menu" : "⚪ Not on menu"}</div>
           <div style="margin-top:6px;">
             ${r.selling_price ? `<span class="price-tag big">${fmt(r.selling_price)} tk</span> ${marginBadge}` : `<span class="hint">No selling price set</span>`}
           </div>
@@ -338,13 +338,11 @@ function openRecipeModal(recipe = null) {
 
   if (recipe) {
     $("rec-name").value = recipe.name;
+    $("rec-size").value = recipe.size_label || "";
     $("rec-yield").value = recipe.yield_count;
     $("rec-packaging").value = recipe.packaging_cost;
     $("rec-delivery").value = recipe.delivery_cost;
     $("rec-selling").value = recipe.selling_price || "";
-    $("rec-description").value = recipe.description || "";
-    $("rec-delivery-time").value = recipe.delivery_time || "";
-    $("rec-show-menu").checked = !!recipe.show_on_menu;
     recipe.recipe_ingredients.forEach((li) => addRecipeLine(li));
   } else {
     addRecipeLine();
@@ -504,13 +502,11 @@ $("recipe-form").addEventListener("submit", async (e) => {
 
   const payload = {
     name: $("rec-name").value.trim(),
+    size_label: $("rec-size").value.trim() || null,
     yield_count: parseInt($("rec-yield").value) || 1,
     packaging_cost: parseFloat($("rec-packaging").value) || 0,
     delivery_cost: parseFloat($("rec-delivery").value) || 0,
     selling_price: parseFloat($("rec-selling").value) || null,
-    description: $("rec-description").value.trim() || null,
-    delivery_time: $("rec-delivery-time").value.trim() || null,
-    show_on_menu: $("rec-show-menu").checked,
     updated_at: new Date().toISOString(),
   };
 
@@ -539,4 +535,143 @@ $("recipe-form").addEventListener("submit", async (e) => {
   toast("Recipe saved");
   $("recipe-modal").classList.remove("visible");
   loadRecipes();
+});
+
+// ============================================================
+// SALES
+// ============================================================
+let sales = [];
+
+async function loadSales() {
+  const { data, error } = await sb.from("sales").select("*").order("sale_date", { ascending: false }).order("created_at", { ascending: false });
+  if (error) return toast(error.message, true);
+  sales = data;
+  renderSales();
+}
+
+function renderSales() {
+  const totalRevenue = sales.reduce((s, x) => s + x.total_revenue, 0);
+  const totalCost = sales.reduce((s, x) => s + x.total_cost, 0);
+  const totalProfit = totalRevenue - totalCost;
+
+  $("sales-summary").innerHTML = `
+    <div class="summary-card revenue"><div class="label">Total revenue</div><div class="value">${fmt(totalRevenue)} tk</div></div>
+    <div class="summary-card cost"><div class="label">Total cost</div><div class="value">${fmt(totalCost)} tk</div></div>
+    <div class="summary-card profit"><div class="label">Total profit</div><div class="value">${fmt(totalProfit)} tk</div></div>
+    <div class="summary-card"><div class="label">Sales logged</div><div class="value">${sales.length}</div></div>
+  `;
+
+  const tbody = $("sales-tbody");
+  if (!sales.length) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state">No sales logged yet</div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = sales
+    .map((s) => {
+      const profit = s.total_revenue - s.total_cost;
+      return `
+      <tr>
+        <td>${s.sale_date}</td>
+        <td>${s.recipe_name_snapshot}</td>
+        <td class="num">${s.quantity}</td>
+        <td class="num">${fmt(s.total_revenue)}</td>
+        <td class="num">${fmt(s.total_cost)}</td>
+        <td class="num ${profit >= 0 ? "profit-pos" : "profit-neg"}">${fmt(profit)}</td>
+        <td class="row-actions">
+          <button onclick="editSale('${s.id}')" title="Edit">✎</button>
+          <button onclick="deleteSale('${s.id}')" title="Delete">✕</button>
+        </td>
+      </tr>`;
+    })
+    .join("");
+}
+
+$("add-sale-btn").addEventListener("click", () => openSaleModal());
+window.editSale = (id) => openSaleModal(sales.find((s) => s.id === id));
+
+window.deleteSale = async (id) => {
+  if (!confirm("Delete this sale record?")) return;
+  const { error } = await sb.from("sales").delete().eq("id", id);
+  if (error) return toast(error.message, true);
+  toast("Sale deleted");
+  loadSales();
+};
+
+function populateSaleRecipeSelect(selectedId = null) {
+  const sel = $("sale-recipe");
+  sel.innerHTML =
+    `<option value="">— choose a cake —</option>` +
+    recipes.map((r) => `<option value="${r.id}" ${r.id === selectedId ? "selected" : ""}>${r.name}${r.size_label ? " (" + r.size_label + ")" : ""}</option>`).join("");
+}
+
+function openSaleModal(sale = null) {
+  $("sale-form").reset();
+  populateSaleRecipeSelect(sale ? sale.recipe_id : null);
+  $("sale-id").value = sale ? sale.id : "";
+  $("sale-modal-title").textContent = sale ? "Edit sale" : "Log a sale";
+  $("sale-date").value = sale ? sale.sale_date : new Date().toISOString().slice(0, 10);
+
+  if (sale) {
+    $("sale-qty").value = sale.quantity;
+    $("sale-price").value = sale.price_per_unit;
+    $("sale-notes").value = sale.notes || "";
+  } else {
+    const r = recipes[0];
+    if (r && r.selling_price) $("sale-price").value = r.selling_price;
+  }
+  updateSalePreview();
+  $("sale-modal").classList.add("visible");
+}
+
+function updateSalePreview() {
+  const recipeId = $("sale-recipe").value;
+  const recipe = recipes.find((r) => r.id === recipeId);
+  const qty = parseFloat($("sale-qty").value) || 0;
+  const price = parseFloat($("sale-price").value) || 0;
+
+  if (!recipe) {
+    $("sale-preview").textContent = "Pick a cake to see cost & profit.";
+    return;
+  }
+  const { perUnit } = recipeCost(recipe);
+  const revenue = qty * price;
+  const cost = qty * perUnit;
+  const profit = revenue - cost;
+  $("sale-preview").innerHTML = `Cost/unit right now: <b>${fmt(perUnit)} tk</b> · Revenue: <b>${fmt(revenue)} tk</b> · Cost: <b>${fmt(cost)} tk</b> · Profit: <b>${fmt(profit)} tk</b>`;
+}
+
+$("sale-recipe").addEventListener("change", (e) => {
+  const recipe = recipes.find((r) => r.id === e.target.value);
+  if (recipe && recipe.selling_price && !$("sale-id").value) {
+    $("sale-price").value = recipe.selling_price;
+  }
+  updateSalePreview();
+});
+["sale-qty", "sale-price"].forEach((id) => $(id).addEventListener("input", updateSalePreview));
+
+$("sale-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const id = $("sale-id").value;
+  const recipeId = $("sale-recipe").value;
+  const recipe = recipes.find((r) => r.id === recipeId);
+  if (!recipe) return toast("Pick a cake", true);
+
+  const { perUnit } = recipeCost(recipe);
+
+  const payload = {
+    recipe_id: recipe.id,
+    recipe_name_snapshot: recipe.name,
+    quantity: parseFloat($("sale-qty").value),
+    price_per_unit: parseFloat($("sale-price").value),
+    cost_per_unit_snapshot: perUnit,
+    sale_date: $("sale-date").value,
+    notes: $("sale-notes").value.trim() || null,
+  };
+
+  const { error } = id ? await sb.from("sales").update(payload).eq("id", id) : await sb.from("sales").insert(payload);
+  if (error) return toast(error.message, true);
+
+  toast("Sale saved");
+  $("sale-modal").classList.remove("visible");
+  loadSales();
 });
