@@ -2,7 +2,7 @@
 // PASTE YOUR OWN SUPABASE DETAILS BELOW
 // Find these in Supabase: Project Settings → API
 // ============================================================
-const SUPABASE_URL = "sb_publishable_nBJWAwiqK5Ty3RgaznCbVA_nvhLl_AZ";
+const SUPABASE_URL = "https://dunwdnlfrdwmnukjrfgb.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR1bndkbmxmcmR3bW51a2pyZmdiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU4OTE2NDMsImV4cCI6MjEwMTQ2NzY0M30.HcuK0USRnnAAU4XmuABE5EUkUb1rj8oN7ZF5EhpRnfc";
 
 // Your phone number for the "Call to order" button on the customer menu page.
