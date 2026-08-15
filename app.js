@@ -618,9 +618,6 @@ function openSaleModal(sale = null) {
     $("sale-qty").value = sale.quantity;
     $("sale-price").value = sale.price_per_unit;
     $("sale-notes").value = sale.notes || "";
-  } else {
-    const r = recipes[0];
-    if (r && r.selling_price) $("sale-price").value = r.selling_price;
   }
   updateSalePreview();
   $("sale-modal").classList.add("visible");
