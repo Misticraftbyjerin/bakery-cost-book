@@ -49,6 +49,8 @@
     <button class="tab-btn active" data-view="ingredients">Ingredients</button>
     <button class="tab-btn" data-view="recipes">Cakes &amp; Costing</button>
     <button class="tab-btn" data-view="sales">Sales</button>
+    <button class="tab-btn" data-view="expenses">Expenses</button>
+    <button class="tab-btn" data-view="dashboard">Dashboard</button>
   </nav>
 
   <main>
@@ -100,7 +102,118 @@
         </table>
       </div>
     </section>
+
+    <!-- ============ EXPENSES VIEW ============ -->
+    <section class="view" id="view-expenses">
+      <div class="view-head">
+        <div>
+          <h2>Expenses</h2>
+          <p class="sub">Anything you buy that isn't a recipe ingredient — boards, molds, packaging, equipment, restocks.</p>
+        </div>
+        <button class="btn btn-rose" id="add-expense-btn">+ Log expense</button>
+      </div>
+
+      <div class="summary-cards" id="expenses-summary"></div>
+
+      <div class="table-wrap">
+        <table class="sales-table" id="expenses-table">
+          <thead>
+            <tr>
+              <th>Date</th><th>Item</th><th>Category</th><th>Amount</th><th>Notes</th><th></th>
+            </tr>
+          </thead>
+          <tbody id="expenses-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============ DASHBOARD VIEW ============ -->
+    <section class="view" id="view-dashboard">
+      <div class="view-head">
+        <div>
+          <h2>Dashboard</h2>
+          <p class="sub">Your business at a glance.</p>
+        </div>
+        <div class="period-picker" id="dash-period">
+          <button data-period="7d">7 days</button>
+          <button data-period="30d" class="active">30 days</button>
+          <button data-period="year">This year</button>
+          <button data-period="all">All time</button>
+        </div>
+      </div>
+
+      <div class="summary-cards" id="dash-summary"></div>
+
+      <div class="dash-section">
+        <h3>Cakes — sales &amp; profit</h3>
+        <div class="table-wrap">
+          <table class="sales-table">
+            <thead><tr><th>Cake</th><th>Qty sold</th><th>Revenue</th><th>Cost</th><th>Profit</th></tr></thead>
+            <tbody id="dash-cakes"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="dash-grid">
+        <div class="dash-section">
+          <h3>Ingredients costing you the most</h3>
+          <div id="dash-ingredients" class="bar-list"></div>
+        </div>
+        <div class="dash-section">
+          <h3>Spending by category</h3>
+          <div id="dash-categories" class="bar-list"></div>
+        </div>
+      </div>
+    </section>
   </main>
+</div>
+
+<!-- ============================================================
+     MODAL: Add / Edit Expense
+     ============================================================ -->
+<div class="overlay" id="expense-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="expense-modal-title">Log expense</h2>
+      <button data-close="expense-modal">✕</button>
+    </div>
+    <form id="expense-form">
+      <input type="hidden" id="exp-id" />
+      <label>Item</label>
+      <input type="text" id="exp-item" placeholder="e.g. Cake boards, New round mold" required />
+
+      <div class="row3">
+        <div>
+          <label>Category</label>
+          <select id="exp-category">
+            <option>Packaging</option>
+            <option>Equipment</option>
+            <option>Ingredients</option>
+            <option>Other</option>
+          </select>
+        </div>
+        <div>
+          <label>Amount (tk)</label>
+          <input type="number" id="exp-amount" min="0" step="any" required />
+        </div>
+        <div>
+          <label>Date</label>
+          <input type="date" id="exp-date" required />
+        </div>
+      </div>
+
+      <label>Quantity <span class="opt">(optional, free text — e.g. "2 dozen", "1 mold")</span></label>
+      <input type="text" id="exp-qty" />
+
+      <label>Notes <span class="opt">(optional)</span></label>
+      <textarea id="exp-notes" rows="2"></textarea>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" data-close="expense-modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save expense</button>
+      </div>
+    </form>
+  </div>
 </div>
 
 <!-- ============================================================

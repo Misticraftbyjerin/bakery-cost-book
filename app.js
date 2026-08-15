@@ -76,6 +76,8 @@ async function onLoggedIn(user) {
   await loadIngredients();
   await loadRecipes();
   await loadSales();
+  await loadExpenses();
+  renderDashboard();
 }
 
 // check existing session on page load
@@ -595,6 +597,7 @@ window.deleteSale = async (id) => {
   if (error) return toast(error.message, true);
   toast("Sale deleted");
   loadSales();
+  renderDashboard();
 };
 
 function populateSaleRecipeSelect(selectedId = null) {
@@ -674,4 +677,223 @@ $("sale-form").addEventListener("submit", async (e) => {
   toast("Sale saved");
   $("sale-modal").classList.remove("visible");
   loadSales();
+  renderDashboard();
 });
+// ============================================================
+// EXPENSES
+// ============================================================
+let expenses = [];
+
+async function loadExpenses() {
+  const { data, error } = await sb.from("expenses").select("*").order("expense_date", { ascending: false });
+  if (error) return toast(error.message, true);
+  expenses = data;
+  renderExpenses();
+}
+
+function renderExpenses() {
+  const total = expenses.reduce((s, x) => s + x.amount, 0);
+  $("expenses-summary").innerHTML = `
+    <div class="summary-card cost"><div class="label">Total spent</div><div class="value">${fmt(total)} tk</div></div>
+    <div class="summary-card"><div class="label">Items logged</div><div class="value">${expenses.length}</div></div>
+  `;
+
+  const tbody = $("expenses-tbody");
+  if (!expenses.length) {
+    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state">No expenses logged yet</div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = expenses
+    .map(
+      (e) => `
+    <tr>
+      <td>${e.expense_date}</td>
+      <td>${e.item_name}${e.quantity ? ` <span class="hint">(${e.quantity})</span>` : ""}</td>
+      <td>${e.category}</td>
+      <td class="num">${fmt(e.amount)} tk</td>
+      <td class="hint">${e.notes || ""}</td>
+      <td class="row-actions">
+        <button onclick="editExpense('${e.id}')" title="Edit">✎</button>
+        <button onclick="deleteExpense('${e.id}')" title="Delete">✕</button>
+      </td>
+    </tr>`
+    )
+    .join("");
+}
+
+$("add-expense-btn").addEventListener("click", () => openExpenseModal());
+window.editExpense = (id) => openExpenseModal(expenses.find((e) => e.id === id));
+
+window.deleteExpense = async (id) => {
+  if (!confirm("Delete this expense record?")) return;
+  const { error } = await sb.from("expenses").delete().eq("id", id);
+  if (error) return toast(error.message, true);
+  toast("Expense deleted");
+  loadExpenses();
+  renderDashboard();
+};
+
+function openExpenseModal(exp = null) {
+  $("expense-form").reset();
+  $("exp-id").value = exp ? exp.id : "";
+  $("expense-modal-title").textContent = exp ? "Edit expense" : "Log expense";
+  $("exp-date").value = exp ? exp.expense_date : new Date().toISOString().slice(0, 10);
+  if (exp) {
+    $("exp-item").value = exp.item_name;
+    $("exp-category").value = exp.category;
+    $("exp-amount").value = exp.amount;
+    $("exp-qty").value = exp.quantity || "";
+    $("exp-notes").value = exp.notes || "";
+  }
+  $("expense-modal").classList.add("visible");
+}
+
+$("expense-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const id = $("exp-id").value;
+  const payload = {
+    item_name: $("exp-item").value.trim(),
+    category: $("exp-category").value,
+    amount: parseFloat($("exp-amount").value),
+    quantity: $("exp-qty").value.trim() || null,
+    notes: $("exp-notes").value.trim() || null,
+    expense_date: $("exp-date").value,
+  };
+  const { error } = id ? await sb.from("expenses").update(payload).eq("id", id) : await sb.from("expenses").insert(payload);
+  if (error) return toast(error.message, true);
+
+  toast("Expense saved");
+  $("expense-modal").classList.remove("visible");
+  loadExpenses();
+  renderDashboard();
+});
+
+// ============================================================
+// DASHBOARD
+// ============================================================
+let dashboardPeriod = "30d";
+
+function periodStartDate(period) {
+  const now = new Date();
+  if (period === "7d") {
+    const d = new Date(now);
+    d.setDate(d.getDate() - 6);
+    return d.toISOString().slice(0, 10);
+  }
+  if (period === "30d") {
+    const d = new Date(now);
+    d.setDate(d.getDate() - 29);
+    return d.toISOString().slice(0, 10);
+  }
+  if (period === "year") return `${now.getFullYear()}-01-01`;
+  return null; // all time
+}
+
+function filterByPeriod(list, dateField, period) {
+  const start = periodStartDate(period);
+  if (!start) return list;
+  return list.filter((x) => x[dateField] >= start);
+}
+
+document.querySelectorAll("#dash-period button").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("#dash-period button").forEach((b) => b.classList.remove("active"));
+    btn.classList.add("active");
+    dashboardPeriod = btn.dataset.period;
+    renderDashboard();
+  });
+});
+
+function renderDashboard() {
+  const periodSales = filterByPeriod(sales, "sale_date", dashboardPeriod);
+  const periodExpenses = filterByPeriod(expenses, "expense_date", dashboardPeriod);
+
+  const revenue = periodSales.reduce((s, x) => s + x.total_revenue, 0);
+  const ingredientCost = periodSales.reduce((s, x) => s + x.total_cost, 0);
+  const otherCost = periodExpenses.reduce((s, x) => s + x.amount, 0);
+  const totalCost = ingredientCost + otherCost;
+  const profit = revenue - totalCost;
+
+  $("dash-summary").innerHTML = `
+    <div class="summary-card revenue"><div class="label">Revenue</div><div class="value">${fmt(revenue)} tk</div></div>
+    <div class="summary-card cost"><div class="label">Total cost</div><div class="value">${fmt(totalCost)} tk</div></div>
+    <div class="summary-card profit"><div class="label">Profit</div><div class="value">${fmt(profit)} tk</div></div>
+    <div class="summary-card"><div class="label">Cakes sold</div><div class="value">${periodSales.reduce((s, x) => s + Number(x.quantity), 0)}</div></div>
+  `;
+
+  // ---- top cakes by sales/profit ----
+  const byRecipe = {};
+  periodSales.forEach((s) => {
+    if (!byRecipe[s.recipe_name_snapshot]) byRecipe[s.recipe_name_snapshot] = { name: s.recipe_name_snapshot, qty: 0, revenue: 0, cost: 0 };
+    byRecipe[s.recipe_name_snapshot].qty += Number(s.quantity);
+    byRecipe[s.recipe_name_snapshot].revenue += s.total_revenue;
+    byRecipe[s.recipe_name_snapshot].cost += s.total_cost;
+  });
+  const cakeRows = Object.values(byRecipe).map((r) => ({ ...r, profit: r.revenue - r.cost }));
+  const bestSeller = cakeRows.slice().sort((a, b) => b.qty - a.qty)[0];
+  const mostProfitable = cakeRows.slice().sort((a, b) => b.profit - a.profit)[0];
+  cakeRows.sort((a, b) => b.profit - a.profit);
+
+  $("dash-cakes").innerHTML = cakeRows.length
+    ? cakeRows
+        .map(
+          (r) => `
+    <tr>
+      <td>${r.name}
+        ${bestSeller && r.name === bestSeller.name ? '<span class="mini-badge seller">Best seller</span>' : ""}
+        ${mostProfitable && r.name === mostProfitable.name ? '<span class="mini-badge profit">Most profitable</span>' : ""}
+      </td>
+      <td class="num">${r.qty}</td>
+      <td class="num">${fmt(r.revenue)}</td>
+      <td class="num">${fmt(r.cost)}</td>
+      <td class="num ${r.profit >= 0 ? "profit-pos" : "profit-neg"}">${fmt(r.profit)}</td>
+    </tr>`
+        )
+        .join("")
+    : `<tr><td colspan="5"><div class="empty-state">No sales in this period</div></td></tr>`;
+
+  // ---- top ingredients by cost contribution (based on what was actually sold) ----
+  const byIngredient = {};
+  periodSales.forEach((s) => {
+    const recipe = recipes.find((r) => r.id === s.recipe_id);
+    if (!recipe) return;
+    recipe.recipe_ingredients.forEach((li) => {
+      const cost = li.unit_price_snapshot * li.quantity * Number(s.quantity);
+      byIngredient[li.ingredient_name_snapshot] = (byIngredient[li.ingredient_name_snapshot] || 0) + cost;
+    });
+  });
+  const ingRows = Object.entries(byIngredient).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const maxIngCost = ingRows[0]?.[1] || 1;
+  $("dash-ingredients").innerHTML = ingRows.length
+    ? ingRows
+        .map(
+          ([name, cost]) => `
+      <div class="bar-row">
+        <span class="bar-label">${name}</span>
+        <div class="bar-track"><div class="bar-fill" style="width:${((cost / maxIngCost) * 100).toFixed(0)}%"></div></div>
+        <span class="bar-value">${fmt(cost)} tk</span>
+      </div>`
+        )
+        .join("")
+    : `<div class="empty-state">No sales logged yet</div>`;
+
+  // ---- spending by category ----
+  const catTotals = { Ingredients: ingredientCost };
+  periodExpenses.forEach((e) => {
+    catTotals[e.category] = (catTotals[e.category] || 0) + e.amount;
+  });
+  const catEntries = Object.entries(catTotals).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+  const maxCat = catEntries[0]?.[1] || 1;
+  $("dash-categories").innerHTML = catEntries.length
+    ? catEntries
+        .map(
+          ([cat, val]) => `
+      <div class="bar-row">
+        <span class="bar-label">${cat}</span>
+        <div class="bar-track"><div class="bar-fill cat" style="width:${((val / maxCat) * 100).toFixed(0)}%"></div></div>
+        <span class="bar-value">${fmt(val)} tk</span>
+      </div>`
+        )
+        .join("")
+    : `<div class="empty-state">No data yet</div>`;
+}

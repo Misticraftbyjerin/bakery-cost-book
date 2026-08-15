@@ -73,8 +73,30 @@ Just re-upload the changed files to GitHub (same drag-and-drop as Step 4 — Git
 **Sales tab** — log each sale: pick the cake, quantity, price, and date. It automatically pulls that cake's *current* cost to calculate cost and profit for that sale, and keeps running totals (revenue, cost, profit, number of sales logged) at the top.
 
 ## What could come later, if you want it
-- Filter/breakdown by week, month, or year
-- Which cake is your best-seller / most profitable / least profitable
-- Which ingredient is costing you the most overall
+- Recurring expense templates (so you don't retype "cake boards" every time)
+- Exporting sales/expenses to a spreadsheet
 
 Just let me know if you want any of these added.
+
+---
+
+# Phase 4 — Expenses tab & Dashboard
+
+Two more tabs, rounding out the core system:
+
+**Expenses** — log anything you buy that isn't a recipe ingredient: boards, molds, packaging, equipment, or a general restock. Date, item, category (Packaging / Equipment / Ingredients / Other), amount, and optional notes.
+
+**Dashboard** — your business at a glance, with a 7 days / 30 days / this year / all time filter:
+- Revenue, total cost, profit, and cakes sold for the period
+- Which cakes sold the most and which were the most profitable (separately badged — they're not always the same cake!)
+- Which ingredients are costing you the most, based on what actually sold in that period
+- Spending by category — ingredients (calculated from sales) vs packaging vs equipment vs other (from Expenses)
+
+**One thing worth knowing:** the Sales tab's profit only accounts for ingredient cost. The Dashboard's profit is more complete — it also subtracts your Expenses (packaging, equipment, restocks) for the period, so it's a truer picture of what you actually kept.
+
+### To install
+1. Run `phase4-expenses-migration.sql` in Supabase SQL Editor
+2. Re-upload `index.html`, `app.js`, `style.css` to GitHub (all 3 changed again)
+3. Netlify redeploys automatically
+
+Once it's live: log your 14 jar cakes + the 1.5-pound vanilla cake in Sales, log the boards and new mold in Expenses, and check the Dashboard — it should immediately reflect all of it.
