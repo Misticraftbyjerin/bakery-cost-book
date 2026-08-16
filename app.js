@@ -845,23 +845,106 @@ window.deleteExpense = async (id) => {
 function openExpenseModal(exp = null) {
   $("expense-form").reset();
   $("exp-id").value = exp ? exp.id : "";
+  $("exp-ingredient-id").value = "";
   $("expense-modal-title").textContent = exp ? "Edit expense" : "Log expense";
   $("exp-date").value = exp ? exp.expense_date : new Date().toISOString().slice(0, 10);
+  $("exp-ing-picked-hint").textContent = "";
+  $("exp-ing-search").value = "";
+  setExpenseItemMode("new");
+
   if (exp) {
     $("exp-item").value = exp.item_name;
     $("exp-category").value = exp.category;
     $("exp-amount").value = exp.amount;
     $("exp-qty").value = exp.quantity || "";
     $("exp-notes").value = exp.notes || "";
+    if (exp.ingredient_id) {
+      $("exp-ingredient-id").value = exp.ingredient_id;
+      $("exp-ing-search").value = exp.item_name;
+      setExpenseItemMode("existing");
+    }
   }
   $("expense-modal").classList.add("visible");
 }
 
+function setExpenseItemMode(mode) {
+  $("exp-item-mode")
+    .querySelectorAll("button")
+    .forEach((b) => b.classList.toggle("active", b.dataset.mode === mode));
+  $("exp-item-new").style.display = mode === "new" ? "" : "none";
+  $("exp-item-existing").style.display = mode === "existing" ? "" : "none";
+  if (mode === "new") $("exp-ingredient-id").value = "";
+}
+
+$("exp-item-mode")
+  .querySelectorAll("button")
+  .forEach((btn) => btn.addEventListener("click", () => setExpenseItemMode(btn.dataset.mode)));
+
+// searchable ingredient picker for the expense form (single instance, not per-line)
+const expIngSearch = $("exp-ing-search");
+const expIngDropdown = $("exp-ing-dropdown");
+
+function renderExpIngDropdown(term) {
+  const t = term.trim().toLowerCase();
+  const matches = ingredients
+    .filter((ing) => !t || ing.name.toLowerCase().includes(t) || (ing.item_code && ing.item_code.toLowerCase().includes(t)))
+    .slice(0, 8);
+
+  expIngDropdown.innerHTML = matches.length
+    ? matches
+        .map(
+          (ing) => `
+      <div class="ing-option" data-id="${ing.id}">
+        <span class="opt-name">${ing.name}${ing.item_code ? `<span class="code-tag">${ing.item_code}</span>` : ""}</span>
+        <span class="opt-meta">${ing.package_qty}${ing.base_unit} pack</span>
+      </div>`
+        )
+        .join("")
+    : `<div class="ing-option no-match">No ingredients match</div>`;
+  expIngDropdown.classList.add("open");
+
+  expIngDropdown.querySelectorAll(".ing-option[data-id]").forEach((opt) => {
+    opt.addEventListener("click", () => {
+      const ing = ingredients.find((i) => i.id === opt.dataset.id);
+      $("exp-ingredient-id").value = ing.id;
+      expIngSearch.value = ing.name;
+      $("exp-item").value = ing.name; // kept in sync, used as the saved item name either way
+      $("exp-category").value = "Ingredients";
+      if (!$("exp-qty").value) $("exp-qty").value = `${ing.package_qty}${ing.base_unit}`;
+      $("exp-ing-picked-hint").textContent = `Linked to your Ingredients list — price is NOT pulled in, so this expense won't change if you update ${ing.name}'s price later.`;
+      expIngDropdown.classList.remove("open");
+    });
+  });
+}
+expIngSearch.addEventListener("focus", () => renderExpIngDropdown(""));
+expIngSearch.addEventListener("input", () => {
+  $("exp-ingredient-id").value = "";
+  $("exp-ing-picked-hint").textContent = "";
+  renderExpIngDropdown(expIngSearch.value);
+});
+expIngSearch.addEventListener("blur", () => {
+  setTimeout(() => expIngDropdown.classList.remove("open"), 150);
+});
+
 $("expense-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const id = $("exp-id").value;
+  const usingExisting = $("exp-item-mode").querySelector("button.active").dataset.mode === "existing";
+
+  if (usingExisting && !$("exp-ingredient-id").value) {
+    toast("Pick an ingredient from the list, or switch to New Item", true);
+    return;
+  }
+
+  const itemName = usingExisting ? $("exp-ing-search").value.trim() : $("exp-item").value.trim();
+  if (!itemName) {
+    toast("Enter an item name", true);
+    return;
+  }
+
   const payload = {
-    item_name: $("exp-item").value.trim(),
+    item_name: itemName,
+    ingredient_id: usingExisting ? $("exp-ingredient-id").value : null,
     category: $("exp-category").value,
     amount: parseFloat($("exp-amount").value),
     quantity: $("exp-qty").value.trim() || null,
@@ -1150,4 +1233,123 @@ $("cashlog-form").addEventListener("submit", async (e) => {
   toast("Saved");
   $("cashlog-modal").classList.remove("visible");
   loadCashLogs();
+});
+
+// ============================================================
+// EXPORT BACKUP — downloads everything as an .xlsx spreadsheet
+// (opens directly in Google Sheets or Excel)
+// ============================================================
+$("export-backup-btn").addEventListener("click", async () => {
+  const btn = $("export-backup-btn");
+  const originalText = btn.textContent;
+  btn.textContent = "Preparing…";
+  btn.disabled = true;
+
+  try {
+    // fetch price history fresh — it isn't kept loaded in memory elsewhere
+    const { data: priceHistory, error: phError } = await sb
+      .from("ingredient_price_history")
+      .select("*, ingredients(name)")
+      .order("changed_at", { ascending: false });
+    if (phError) throw phError;
+
+    const categoryName = (id) => categories.find((c) => c.id === id)?.name || "";
+
+    const ingredientsSheet = ingredients.map((i) => ({
+      Name: i.name,
+      "Item Code": i.item_code || "",
+      Category: categoryName(i.category_id),
+      "Package Size": i.package_qty,
+      Unit: i.base_unit,
+      "Package Price (tk)": i.package_price,
+      "Price per Unit (tk)": i.unit_price,
+      "Last Updated": i.updated_at,
+    }));
+
+    const recipesSheet = recipes.map((r) => {
+      const { perUnit } = recipeCost(r);
+      return {
+        Name: r.name,
+        Size: r.size_label || "",
+        "Yields (units)": r.yield_count,
+        "Packaging Cost (tk)": r.packaging_cost,
+        "Delivery Cost (tk)": r.delivery_cost,
+        "Cost per Unit (tk)": fmt(perUnit),
+        "Selling Price (tk)": r.selling_price || "",
+        "Daily Target": r.daily_target_qty || "",
+        "Created": r.created_at,
+      };
+    });
+
+    const recipeIngredientsSheet = [];
+    recipes.forEach((r) => {
+      r.recipe_ingredients.forEach((li) => {
+        recipeIngredientsSheet.push({
+          Recipe: r.name,
+          Ingredient: li.ingredient_name_snapshot,
+          Quantity: li.quantity,
+          "Unit Price at the time (tk)": li.unit_price_snapshot,
+          "Line Cost (tk)": li.line_cost,
+        });
+      });
+    });
+
+    const salesSheet = sales.map((s) => ({
+      Date: s.sale_date,
+      Cake: s.recipe_name_snapshot,
+      Quantity: s.quantity,
+      "Price per Unit (tk)": s.price_per_unit,
+      "Revenue (tk)": s.total_revenue,
+      "Cost per Unit at sale time (tk)": s.cost_per_unit_snapshot,
+      "Cost (tk)": s.total_cost,
+      "Profit (tk)": fmt(s.total_revenue - s.total_cost),
+      Notes: s.notes || "",
+    }));
+
+    const expensesSheet = expenses.map((e) => ({
+      Date: e.expense_date,
+      Item: e.item_name,
+      Category: e.category,
+      "Amount (tk)": e.amount,
+      Quantity: e.quantity || "",
+      Notes: e.notes || "",
+    }));
+
+    const cashLogSheet = cashLogs.map((c) => ({
+      Date: c.log_date,
+      "Expected Revenue (tk)": c.expected_revenue,
+      "Expected Profit (tk)": c.expected_profit,
+      "Actual Cash Counted (tk)": c.actual_cash,
+      "Gap (tk)": fmt(c.actual_cash - c.expected_revenue),
+      Notes: c.notes || "",
+    }));
+
+    const priceHistorySheet = (priceHistory || []).map((p) => ({
+      Ingredient: p.ingredients?.name || "(deleted ingredient)",
+      "Price per Unit (tk)": p.unit_price,
+      "Changed On": p.changed_at,
+    }));
+
+    const wb = XLSX.utils.book_new();
+    const addSheet = (data, name) => {
+      const ws = XLSX.utils.json_to_sheet(data.length ? data : [{ " ": "No data yet" }]);
+      XLSX.utils.book_append_sheet(wb, ws, name);
+    };
+    addSheet(ingredientsSheet, "Ingredients");
+    addSheet(recipesSheet, "Recipes");
+    addSheet(recipeIngredientsSheet, "Recipe Ingredients");
+    addSheet(salesSheet, "Sales");
+    addSheet(expensesSheet, "Expenses");
+    addSheet(cashLogSheet, "Day-End Cash Check");
+    addSheet(priceHistorySheet, "Ingredient Price History");
+
+    const filename = `bakery-backup-${todayStr()}.xlsx`;
+    XLSX.writeFile(wb, filename);
+    toast("Backup downloaded");
+  } catch (err) {
+    toast("Backup failed: " + err.message, true);
+  } finally {
+    btn.textContent = originalText;
+    btn.disabled = false;
+  }
 });

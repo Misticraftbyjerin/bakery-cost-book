@@ -66,6 +66,9 @@ header.topbar .brand .display { font-size: 22px; color: #fff; }
 header.topbar .brand .tag { font-size: 12px; color: var(--butter); letter-spacing: 0.06em; text-transform: uppercase; }
 header.topbar .signout { background: none; border: 1px solid rgba(255,255,255,0.25); color: var(--paper); padding: 6px 14px; border-radius: 20px; font-size: 13px; }
 header.topbar .signout:hover { border-color: var(--rose); color: var(--rose); }
+header.topbar .header-actions { display: flex; align-items: center; gap: 10px; }
+header.topbar .header-actions .btn-outline { border-color: rgba(255,255,255,0.3); color: var(--paper); background: none; }
+header.topbar .header-actions .btn-outline:hover { border-color: var(--butter); color: var(--butter); }
 
 /* Recipe-card tab nav — the signature element */
 nav.tabs {
@@ -233,6 +236,19 @@ main {
   background: var(--card);
   color: var(--ink);
 }
+
+.mode-toggle { display: flex; gap: 8px; margin-bottom: 16px; }
+.mode-toggle button {
+  flex: 1;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.mode-toggle button.active { background: var(--ink); border-color: var(--ink); color: var(--paper); }
 
 .ing-card, .recipe-card {
   border: 1px solid var(--line);

@@ -42,7 +42,10 @@
       <span class="display">Bakery Cost Book</span>
       <span class="tag">admin</span>
     </div>
-    <button class="signout" id="signout-btn">Sign out</button>
+    <div class="header-actions">
+      <button class="btn btn-outline btn-sm" id="export-backup-btn">⬇ Export Backup</button>
+      <button class="signout" id="signout-btn">Sign out</button>
+    </div>
   </header>
 
   <nav class="tabs">
@@ -275,8 +278,26 @@
     </div>
     <form id="expense-form">
       <input type="hidden" id="exp-id" />
-      <label>Item</label>
-      <input type="text" id="exp-item" placeholder="e.g. Cake boards, New round mold" required />
+      <input type="hidden" id="exp-ingredient-id" />
+
+      <div class="mode-toggle" id="exp-item-mode">
+        <button type="button" data-mode="new" class="active">New Item</button>
+        <button type="button" data-mode="existing">From Ingredients</button>
+      </div>
+
+      <div id="exp-item-new">
+        <label>Item</label>
+        <input type="text" id="exp-item" placeholder="e.g. Cake boards, New round mold" />
+      </div>
+
+      <div id="exp-item-existing" style="display:none;">
+        <label>Ingredient</label>
+        <div class="ing-picker">
+          <input type="text" class="ing-search" id="exp-ing-search" placeholder="Search ingredient or code…" autocomplete="off" />
+          <div class="ing-dropdown" id="exp-ing-dropdown"></div>
+        </div>
+        <p class="hint" id="exp-ing-picked-hint" style="margin-top:6px;"></p>
+      </div>
 
       <div class="row3">
         <div>
@@ -289,7 +310,7 @@
           </select>
         </div>
         <div>
-          <label>Amount (tk)</label>
+          <label>Amount (tk) <span class="opt">(what you actually paid — always entered by hand)</span></label>
           <input type="number" id="exp-amount" min="0" step="any" required />
         </div>
         <div>
@@ -469,6 +490,7 @@
 <div class="toast" id="toast"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="config.js"></script>
 <script src="app.js"></script>
 </body>

@@ -122,3 +122,37 @@ Re-upload these 3 files to GitHub: `index.html`, `app.js`, `style.css`
 ## How to use the new features
 - **Target**: open any recipe → Edit → fill in "Daily sales target" → save. Do this for your jar cake recipe with `40`.
 - **Cash check**: Sales tab → "+ Check a day" → pick the date → it shows expected revenue from what's logged that day → type in what you actually counted → add a note if there's a gap → save. One entry per day (saving again for the same date updates it rather than duplicating).
+
+---
+
+# Phase 6 — Export Backup (Google Sheets / Excel compatible)
+
+## What's new
+A new **"⬇ Export Backup"** button in the top header (visible from any tab). Clicking it downloads a single spreadsheet file with everything in it, as separate tabs: Ingredients, Recipes, Recipe Ingredients, Sales, Expenses, Day-End Cash Check, and Ingredient Price History.
+
+## How to open it in Google Sheets
+1. Click the button — a file like `bakery-backup-2026-08-16.xlsx` downloads to your phone/computer
+2. Go to Google Drive → **New → File upload** → select that file
+3. Once uploaded, right-click it → **Open with → Google Sheets** (or it may open automatically)
+4. That's it — it's now a normal Google Sheet you can view anytime, even without the app
+
+## Important — how this actually works
+This is a **manual, on-demand export** — clicking the button any time gives you a fresh snapshot of everything as of that moment. It does **not** auto-sync or update on its own. A good habit: export it every month or so (or whenever you feel like it), and keep the files in a Google Drive folder as a running archive. This protects your data independently of the app itself, in case anything ever goes wrong with the database.
+
+## To install
+Re-upload `index.html`, `app.js`, `style.css` to GitHub (all 3 changed). No database changes this time.
+
+---
+
+# Phase 7 — Log expenses from your Ingredients list
+
+## What's new
+The "Log expense" form now has a toggle at the top: **New Item** / **From Ingredients**.
+- **New Item** — works exactly like before, type anything freely (e.g. "New round mold")
+- **From Ingredients** — search and pick an existing ingredient (same search-by-name-or-code picker as the recipe builder). This fills in the item name, sets the category to "Ingredients," and suggests a quantity based on that ingredient's package size — but the **Amount is always typed in by hand**. This is intentional: your expense log stays a true record of what you actually paid that day, and never silently changes if you update that ingredient's price later in the Ingredients tab.
+
+## Database change
+Already applied directly — nothing for you to run.
+
+## To install
+Re-upload `index.html` and `app.js` to GitHub (style.css also changed, upload that too — all 3 files this time).
