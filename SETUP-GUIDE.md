@@ -100,3 +100,25 @@ Two more tabs, rounding out the core system:
 3. Netlify redeploys automatically
 
 Once it's live: log your 14 jar cakes + the 1.5-pound vanilla cake in Sales, log the boards and new mold in Expenses, and check the Dashboard — it should immediately reflect all of it.
+
+---
+
+# Phase 5 — Search, filters, sales targets & day-end cash check
+
+## What's new
+- **Search bars** on Ingredients, Cakes & Costing, Sales, and Expenses
+- **Date filters** on Sales and Expenses: This Month / Last Month / All Time / Custom range
+- **Category filter** on Expenses
+- **Daily sales target** — set a target quantity per cake (e.g. "40 jar cakes/day") in the recipe form. A "Today's Progress" bar appears at the top of the Sales tab automatically whenever any cake has a target set.
+- **Day-End Cash Check** — new section at the bottom of the Sales tab. Pick a date, it shows what the app calculated was sold that day, you enter what you actually counted in hand, and it shows the gap. Add notes for why (discount given, extra travel cost, etc.)
+
+## Database change
+Already applied directly to your Supabase project — nothing for you to run this time.
+
+## To install
+Re-upload these 3 files to GitHub: `index.html`, `app.js`, `style.css`
+(config.js is unchanged, don't need to touch it)
+
+## How to use the new features
+- **Target**: open any recipe → Edit → fill in "Daily sales target" → save. Do this for your jar cake recipe with `40`.
+- **Cash check**: Sales tab → "+ Check a day" → pick the date → it shows expected revenue from what's logged that day → type in what you actually counted → add a note if there's a gap → save. One entry per day (saving again for the same date updates it rather than duplicating).

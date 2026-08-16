@@ -77,6 +77,7 @@ async function onLoggedIn(user) {
   await loadRecipes();
   await loadSales();
   await loadExpenses();
+  await loadCashLogs();
   renderDashboard();
 }
 
@@ -277,6 +278,7 @@ async function loadRecipes() {
   if (error) return toast(error.message, true);
   recipes = data;
   renderRecipes();
+  renderTargetProgress();
 }
 
 function recipeCost(recipe) {
@@ -286,13 +288,22 @@ function recipeCost(recipe) {
   return { ingCost, total, perUnit };
 }
 
-function renderRecipes() {
+function renderRecipes(filterText = "") {
   const grid = $("recipes-grid");
+  const term = filterText.trim().toLowerCase();
+  const filtered = term
+    ? recipes.filter((r) => r.name.toLowerCase().includes(term) || (r.size_label && r.size_label.toLowerCase().includes(term)))
+    : recipes;
+
   if (!recipes.length) {
     grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="display">No recipes yet</div>Build your first cake recipe to see its cost calculated automatically.</div>`;
     return;
   }
-  grid.innerHTML = recipes
+  if (!filtered.length) {
+    grid.innerHTML = `<div class="empty-state" style="grid-column:1/-1"><div class="display">No matches</div>Try a different search term.</div>`;
+    return;
+  }
+  grid.innerHTML = filtered
     .map((r) => {
       const { perUnit } = recipeCost(r);
       let marginBadge = "";
@@ -304,7 +315,7 @@ function renderRecipes() {
       <div class="recipe-card">
         <div class="thumb">${r.image_url ? `<img src="${r.image_url}">` : "🎂"}</div>
         <div class="body">
-          <div class="name">${r.name}</div>
+          <div class="name">${r.name}${r.size_label ? `<span class="code-tag">${r.size_label}</span>` : ""}</div>
           <div class="cost-tag">Cost/unit: ${fmt(perUnit)} tk ${r.yield_count > 1 ? `· makes ${r.yield_count}` : ""}</div>
           <div style="margin-top:6px;">
             ${r.selling_price ? `<span class="price-tag big">${fmt(r.selling_price)} tk</span> ${marginBadge}` : `<span class="hint">No selling price set</span>`}
@@ -318,6 +329,8 @@ function renderRecipes() {
     })
     .join("");
 }
+
+$("recipe-search").addEventListener("input", (e) => renderRecipes(e.target.value));
 
 window.deleteRecipe = async (id) => {
   if (!confirm("Delete this recipe?")) return;
@@ -341,6 +354,7 @@ function openRecipeModal(recipe = null) {
   if (recipe) {
     $("rec-name").value = recipe.name;
     $("rec-size").value = recipe.size_label || "";
+    $("rec-target").value = recipe.daily_target_qty || "";
     $("rec-yield").value = recipe.yield_count;
     $("rec-packaging").value = recipe.packaging_cost;
     $("rec-delivery").value = recipe.delivery_cost;
@@ -505,6 +519,7 @@ $("recipe-form").addEventListener("submit", async (e) => {
   const payload = {
     name: $("rec-name").value.trim(),
     size_label: $("rec-size").value.trim() || null,
+    daily_target_qty: parseFloat($("rec-target").value) || null,
     yield_count: parseInt($("rec-yield").value) || 1,
     packaging_cost: parseFloat($("rec-packaging").value) || 0,
     delivery_cost: parseFloat($("rec-delivery").value) || 0,
@@ -540,35 +555,106 @@ $("recipe-form").addEventListener("submit", async (e) => {
 });
 
 // ============================================================
+// DATE-RANGE FILTER HELPERS (shared by Sales & Expenses tabs)
+// ============================================================
+function getMonthRange(offsetMonths) {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth() + offsetMonths;
+  const start = new Date(y, m, 1);
+  const end = new Date(y, m + 1, 0);
+  const iso = (d) => d.toISOString().slice(0, 10);
+  return { from: iso(start), to: iso(end) };
+}
+
+function inDateRange(dateStr, from, to) {
+  if (from && dateStr < from) return false;
+  if (to && dateStr > to) return false;
+  return true;
+}
+
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function setupDateFilter(prefix, onChange) {
+  const presetsEl = $(prefix + "-date-presets");
+  const customRangeEl = $(prefix + "-custom-range");
+  const fromEl = $(prefix + "-date-from");
+  const toEl = $(prefix + "-date-to");
+
+  presetsEl.querySelectorAll("button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      presetsEl.querySelectorAll("button").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      const preset = btn.dataset.preset;
+      customRangeEl.classList.toggle("visible", preset === "custom");
+      onChange(preset);
+    });
+  });
+  fromEl.addEventListener("input", () => onChange("custom"));
+  toEl.addEventListener("input", () => onChange("custom"));
+}
+
+function resolveDateRange(prefix, preset) {
+  if (preset === "this-month") return getMonthRange(0);
+  if (preset === "last-month") return getMonthRange(-1);
+  if (preset === "custom") return { from: $(prefix + "-date-from").value || null, to: $(prefix + "-date-to").value || null };
+  return { from: null, to: null }; // 'all'
+}
+
+// ============================================================
 // SALES
 // ============================================================
 let sales = [];
+const salesFilterState = { search: "", preset: "this-month" };
+
+setupDateFilter("sales", (preset) => {
+  salesFilterState.preset = preset;
+  renderSales();
+});
+$("sales-search").addEventListener("input", (e) => {
+  salesFilterState.search = e.target.value.trim().toLowerCase();
+  renderSales();
+});
+
+function getFilteredSales() {
+  const { from, to } = resolveDateRange("sales", salesFilterState.preset);
+  const term = salesFilterState.search;
+  return sales.filter((s) => {
+    if (!inDateRange(s.sale_date, from, to)) return false;
+    if (term && !(s.recipe_name_snapshot.toLowerCase().includes(term) || (s.notes || "").toLowerCase().includes(term))) return false;
+    return true;
+  });
+}
 
 async function loadSales() {
   const { data, error } = await sb.from("sales").select("*").order("sale_date", { ascending: false }).order("created_at", { ascending: false });
   if (error) return toast(error.message, true);
   sales = data;
   renderSales();
+  renderTargetProgress();
 }
 
 function renderSales() {
-  const totalRevenue = sales.reduce((s, x) => s + x.total_revenue, 0);
-  const totalCost = sales.reduce((s, x) => s + x.total_cost, 0);
+  const filtered = getFilteredSales();
+  const totalRevenue = filtered.reduce((s, x) => s + x.total_revenue, 0);
+  const totalCost = filtered.reduce((s, x) => s + x.total_cost, 0);
   const totalProfit = totalRevenue - totalCost;
 
   $("sales-summary").innerHTML = `
-    <div class="summary-card revenue"><div class="label">Total revenue</div><div class="value">${fmt(totalRevenue)} tk</div></div>
-    <div class="summary-card cost"><div class="label">Total cost</div><div class="value">${fmt(totalCost)} tk</div></div>
-    <div class="summary-card profit"><div class="label">Total profit</div><div class="value">${fmt(totalProfit)} tk</div></div>
-    <div class="summary-card"><div class="label">Sales logged</div><div class="value">${sales.length}</div></div>
+    <div class="summary-card revenue"><div class="label">Revenue</div><div class="value">${fmt(totalRevenue)} tk</div></div>
+    <div class="summary-card cost"><div class="label">Cost</div><div class="value">${fmt(totalCost)} tk</div></div>
+    <div class="summary-card profit"><div class="label">Profit</div><div class="value">${fmt(totalProfit)} tk</div></div>
+    <div class="summary-card"><div class="label">Sales logged</div><div class="value">${filtered.length}</div></div>
   `;
 
   const tbody = $("sales-tbody");
-  if (!sales.length) {
-    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state">No sales logged yet</div></td></tr>`;
+  if (!filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state">No sales match this filter</div></td></tr>`;
     return;
   }
-  tbody.innerHTML = sales
+  tbody.innerHTML = filtered
     .map((s) => {
       const profit = s.total_revenue - s.total_cost;
       return `
@@ -680,6 +766,31 @@ $("sale-form").addEventListener("submit", async (e) => {
 // EXPENSES
 // ============================================================
 let expenses = [];
+const expensesFilterState = { search: "", category: "", preset: "this-month" };
+
+setupDateFilter("expenses", (preset) => {
+  expensesFilterState.preset = preset;
+  renderExpenses();
+});
+$("expenses-search").addEventListener("input", (e) => {
+  expensesFilterState.search = e.target.value.trim().toLowerCase();
+  renderExpenses();
+});
+$("expenses-category-filter").addEventListener("change", (e) => {
+  expensesFilterState.category = e.target.value;
+  renderExpenses();
+});
+
+function getFilteredExpenses() {
+  const { from, to } = resolveDateRange("expenses", expensesFilterState.preset);
+  const term = expensesFilterState.search;
+  return expenses.filter((x) => {
+    if (!inDateRange(x.expense_date, from, to)) return false;
+    if (expensesFilterState.category && x.category !== expensesFilterState.category) return false;
+    if (term && !(x.item_name.toLowerCase().includes(term) || (x.notes || "").toLowerCase().includes(term))) return false;
+    return true;
+  });
+}
 
 async function loadExpenses() {
   const { data, error } = await sb.from("expenses").select("*").order("expense_date", { ascending: false });
@@ -689,18 +800,19 @@ async function loadExpenses() {
 }
 
 function renderExpenses() {
-  const total = expenses.reduce((s, x) => s + x.amount, 0);
+  const filtered = getFilteredExpenses();
+  const total = filtered.reduce((s, x) => s + x.amount, 0);
   $("expenses-summary").innerHTML = `
     <div class="summary-card cost"><div class="label">Total spent</div><div class="value">${fmt(total)} tk</div></div>
-    <div class="summary-card"><div class="label">Items logged</div><div class="value">${expenses.length}</div></div>
+    <div class="summary-card"><div class="label">Items logged</div><div class="value">${filtered.length}</div></div>
   `;
 
   const tbody = $("expenses-tbody");
-  if (!expenses.length) {
-    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state">No expenses logged yet</div></td></tr>`;
+  if (!filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state">No expenses match this filter</div></td></tr>`;
     return;
   }
-  tbody.innerHTML = expenses
+  tbody.innerHTML = filtered
     .map(
       (e) => `
     <tr>
@@ -894,3 +1006,148 @@ function renderDashboard() {
         .join("")
     : `<div class="empty-state">No data yet</div>`;
 }
+
+// ============================================================
+// TODAY'S TARGET PROGRESS (on the Sales tab)
+// ============================================================
+function renderTargetProgress() {
+  const targeted = recipes.filter((r) => r.daily_target_qty && r.daily_target_qty > 0);
+  const section = $("targets-section");
+  if (!targeted.length) {
+    section.style.display = "none";
+    return;
+  }
+  section.style.display = "";
+
+  const today = todayStr();
+  const soldToday = {};
+  sales
+    .filter((s) => s.sale_date === today)
+    .forEach((s) => {
+      soldToday[s.recipe_id] = (soldToday[s.recipe_id] || 0) + Number(s.quantity);
+    });
+
+  $("targets-progress").innerHTML = targeted
+    .map((r) => {
+      const sold = soldToday[r.id] || 0;
+      const pct = Math.min(100, (sold / r.daily_target_qty) * 100);
+      const met = sold >= r.daily_target_qty;
+      return `
+      <div class="bar-row target-row">
+        <span class="bar-label">${r.name}${r.size_label ? ` (${r.size_label})` : ""}</span>
+        <div class="bar-track"><div class="bar-fill ${met ? "target-met" : ""}" style="width:${pct.toFixed(0)}%"></div></div>
+        <span class="bar-value">${sold} / ${r.daily_target_qty}${met ? " 🎉" : ""}</span>
+      </div>`;
+    })
+    .join("");
+}
+
+// ============================================================
+// DAY-END CASH CHECK
+// ============================================================
+let cashLogs = [];
+
+async function loadCashLogs() {
+  const { data, error } = await sb.from("cash_log").select("*").order("log_date", { ascending: false });
+  if (error) return toast(error.message, true);
+  cashLogs = data;
+  renderCashLogs();
+}
+
+function renderCashLogs() {
+  const tbody = $("cashlog-tbody");
+  if (!cashLogs.length) {
+    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state">No day-end checks logged yet</div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = cashLogs
+    .map((c) => {
+      const gap = c.actual_cash - c.expected_revenue;
+      return `
+      <tr>
+        <td>${c.log_date}</td>
+        <td class="num">${fmt(c.expected_revenue)}</td>
+        <td class="num">${fmt(c.actual_cash)}</td>
+        <td class="num ${gap >= 0 ? "profit-pos" : "profit-neg"}">${gap >= 0 ? "+" : ""}${fmt(gap)}</td>
+        <td class="hint">${c.notes || ""}</td>
+        <td class="row-actions">
+          <button onclick="editCashLog('${c.id}')" title="Edit">✎</button>
+          <button onclick="deleteCashLog('${c.id}')" title="Delete">✕</button>
+        </td>
+      </tr>`;
+    })
+    .join("");
+}
+
+window.deleteCashLog = async (id) => {
+  if (!confirm("Delete this day-end check?")) return;
+  const { error } = await sb.from("cash_log").delete().eq("id", id);
+  if (error) return toast(error.message, true);
+  toast("Deleted");
+  loadCashLogs();
+};
+
+function expectedForDate(dateStr) {
+  const daySales = sales.filter((s) => s.sale_date === dateStr);
+  const revenue = daySales.reduce((s, x) => s + x.total_revenue, 0);
+  const cost = daySales.reduce((s, x) => s + x.total_cost, 0);
+  return { revenue, profit: revenue - cost, count: daySales.length };
+}
+
+function updateCashPreview() {
+  const date = $("cash-date").value;
+  const actual = parseFloat($("cash-actual").value);
+  if (!date) return;
+  const { revenue, profit, count } = expectedForDate(date);
+  $("cash-expected-preview").innerHTML = `Logged that day: <b>${count} sale${count === 1 ? "" : "s"}</b> · Expected revenue: <b>${fmt(revenue)} tk</b> · Expected profit: <b>${fmt(profit)} tk</b>`;
+
+  if (!isNaN(actual)) {
+    const gap = actual - revenue;
+    $("cash-gap-summary").innerHTML = `
+      <div class="line"><span>Expected revenue</span><span>${fmt(revenue)} tk</span></div>
+      <div class="line"><span>Actual cash counted</span><span>${fmt(actual)} tk</span></div>
+      <div class="line total"><span>Gap</span><span class="${gap >= 0 ? "profit-pos" : "profit-neg"}">${gap >= 0 ? "+" : ""}${fmt(gap)} tk</span></div>
+    `;
+  } else {
+    $("cash-gap-summary").innerHTML = "";
+  }
+}
+
+$("cash-date").addEventListener("input", updateCashPreview);
+$("cash-actual").addEventListener("input", updateCashPreview);
+
+$("add-cashlog-btn").addEventListener("click", () => openCashLogModal());
+window.editCashLog = (id) => openCashLogModal(cashLogs.find((c) => c.id === id));
+
+function openCashLogModal(entry = null) {
+  $("cashlog-form").reset();
+  $("cash-date").value = entry ? entry.log_date : todayStr();
+  $("cash-actual").value = entry ? entry.actual_cash : "";
+  $("cash-notes").value = entry ? entry.notes || "" : "";
+  updateCashPreview();
+  $("cashlog-modal").classList.add("visible");
+}
+
+$("cashlog-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const date = $("cash-date").value;
+  const actual = parseFloat($("cash-actual").value);
+  const { revenue, profit } = expectedForDate(date);
+
+  const payload = {
+    log_date: date,
+    expected_revenue: revenue,
+    expected_profit: profit,
+    actual_cash: actual,
+    notes: $("cash-notes").value.trim() || null,
+    updated_at: new Date().toISOString(),
+  };
+
+  // one entry per date — upsert on the unique log_date constraint
+  const { error } = await sb.from("cash_log").upsert(payload, { onConflict: "log_date" });
+  if (error) return toast(error.message, true);
+
+  toast("Saved");
+  $("cashlog-modal").classList.remove("visible");
+  loadCashLogs();
+});
