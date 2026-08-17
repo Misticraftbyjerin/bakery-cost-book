@@ -272,6 +272,22 @@
       <div class="summary-cards" id="dash-summary"></div>
 
       <div class="dash-section">
+        <h3>Sales by product type</h3>
+        <div id="dash-product-types" class="product-type-cards"></div>
+      </div>
+
+      <div class="dash-section" id="goal-section">
+        <div class="view-head" style="margin-bottom:14px;">
+          <div>
+            <h3 style="margin:0;">Revenue Goal</h3>
+            <p class="sub">Set a target and see the daily number you need to hit.</p>
+          </div>
+          <button class="btn btn-outline btn-sm" id="edit-goal-btn">Set / change goal</button>
+        </div>
+        <div id="goal-display"></div>
+      </div>
+
+      <div class="dash-section">
         <h3>Cakes — sales &amp; profit</h3>
         <div class="table-wrap">
           <table class="sales-table">
@@ -293,6 +309,44 @@
       </div>
     </section>
   </main>
+</div>
+
+<!-- ============================================================
+     MODAL: Set / Change Revenue Goal
+     ============================================================ -->
+<div class="overlay" id="goal-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>Set a revenue goal</h2>
+      <button data-close="goal-modal">✕</button>
+    </div>
+    <form id="goal-form">
+      <label>Target amount (tk)</label>
+      <input type="number" id="goal-amount" min="0" step="any" placeholder="e.g. 15000" required />
+
+      <div class="row3">
+        <div>
+          <label>Over how many days?</label>
+          <input type="number" id="goal-duration" min="1" step="1" placeholder="e.g. 30" required />
+        </div>
+        <div>
+          <label>Selling days per week</label>
+          <input type="number" id="goal-selling-days" min="1" max="7" step="1" placeholder="e.g. 4" required />
+        </div>
+        <div>
+          <label>Start date</label>
+          <input type="date" id="goal-start-date" required />
+        </div>
+      </div>
+
+      <div class="unit-price-preview" id="goal-preview"></div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" data-close="goal-modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save goal</button>
+      </div>
+    </form>
+  </div>
 </div>
 
 <!-- ============================================================
@@ -561,6 +615,15 @@
       <label>Ingredients used</label>
       <div id="rlines"></div>
       <button type="button" class="btn btn-outline btn-sm" id="add-rline">+ Add ingredient line</button>
+
+      <label>Product type <span class="opt">(powers the Dashboard breakdown by product)</span></label>
+      <select id="rec-product-type">
+        <option value="">— not set —</option>
+        <option value="Jar Cake">Jar Cake</option>
+        <option value="Slice Cake">Slice Cake</option>
+        <option value="Whole Cake (Facebook)">Whole Cake (Facebook)</option>
+        <option value="Other">Other</option>
+      </select>
 
       <div class="row3" style="margin-top:18px;">
         <div>

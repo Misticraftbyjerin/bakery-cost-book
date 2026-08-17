@@ -78,6 +78,7 @@ async function onLoggedIn(user) {
   await loadSales();
   await loadExpenses();
   await loadCashLogs();
+  await loadGoal();
   renderInventory();
   renderDashboard();
 }
@@ -415,6 +416,7 @@ function openRecipeModal(recipe = null) {
   if (recipe) {
     $("rec-name").value = recipe.name;
     $("rec-size").value = recipe.size_label || "";
+    $("rec-product-type").value = recipe.product_type || "";
     $("rec-target").value = recipe.daily_target_qty || "";
     $("rec-yield").value = recipe.yield_count;
     $("rec-packaging").value = recipe.packaging_cost;
@@ -580,6 +582,7 @@ $("recipe-form").addEventListener("submit", async (e) => {
   const payload = {
     name: $("rec-name").value.trim(),
     size_label: $("rec-size").value.trim() || null,
+    product_type: $("rec-product-type").value || null,
     daily_target_qty: parseFloat($("rec-target").value) || null,
     yield_count: parseInt($("rec-yield").value) || 1,
     packaging_cost: parseFloat($("rec-packaging").value) || 0,
@@ -696,6 +699,7 @@ async function loadSales() {
   renderSales();
   renderTargetProgress();
   renderInventory();
+  renderGoal();
 }
 
 function renderSales() {
@@ -1181,6 +1185,36 @@ function renderDashboard() {
     <div class="summary-card"><div class="label">Cakes sold</div><div class="value">${periodSales.reduce((s, x) => s + Number(x.quantity), 0)}</div></div>
   `;
 
+  // ---- sales by product type (Jar Cake / Slice Cake / Whole Cake (Facebook) / etc) ----
+  const TYPE_ORDER = ["Jar Cake", "Slice Cake", "Whole Cake (Facebook)", "Other"];
+  const byType = {};
+  periodSales.forEach((s) => {
+    const recipe = recipes.find((r) => r.id === s.recipe_id);
+    const type = (recipe && recipe.product_type) || "Untagged";
+    if (!byType[type]) byType[type] = { qty: 0, revenue: 0 };
+    byType[type].qty += Number(s.quantity);
+    byType[type].revenue += s.total_revenue;
+  });
+  const typeKeys = Object.keys(byType).sort((a, b) => {
+    const ai = TYPE_ORDER.indexOf(a), bi = TYPE_ORDER.indexOf(b);
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+  });
+  $("dash-product-types").innerHTML = typeKeys.length
+    ? typeKeys
+        .map(
+          (type) => `
+      <div class="product-type-card">
+        <div class="ptc-label">${type}</div>
+        <div class="ptc-value">${byType[type].qty}</div>
+        <div class="ptc-sub">${fmt(byType[type].revenue)} tk</div>
+      </div>`
+        )
+        .join("")
+    : `<div class="empty-state" style="grid-column:1/-1">No sales in this period</div>`;
+  if (typeKeys.includes("Untagged")) {
+    $("dash-product-types").innerHTML += `<p class="hint" style="grid-column:1/-1; margin-top:4px;">"Untagged" = cakes sold whose recipe doesn't have a Product Type set yet — open the recipe in Cakes & Costing to tag it.</p>`;
+  }
+
   // ---- top cakes by sales/profit ----
   const byRecipe = {};
   periodSales.forEach((s) => {
@@ -1257,6 +1291,105 @@ function renderDashboard() {
         .join("")
     : `<div class="empty-state">No data yet</div>`;
 }
+
+// ============================================================
+// REVENUE GOAL
+// ============================================================
+let currentGoal = null;
+
+async function loadGoal() {
+  const { data, error } = await sb.from("sales_goals").select("*").order("created_at", { ascending: false }).limit(1);
+  if (error) return toast(error.message, true);
+  currentGoal = data && data.length ? data[0] : null;
+  renderGoal();
+}
+
+function renderGoal() {
+  const box = $("goal-display");
+  if (!currentGoal) {
+    box.innerHTML = `<p class="goal-empty">No goal set yet — click "Set / change goal" to pick a target.</p>`;
+    return;
+  }
+  const g = currentGoal;
+  const totalSellingDays = Math.max(1, Math.round((g.duration_days / 7) * g.selling_days_per_week));
+  const dailyTarget = g.target_amount / totalSellingDays;
+
+  const start = new Date(g.start_date + "T00:00:00");
+  const end = new Date(start);
+  end.setDate(end.getDate() + g.duration_days - 1);
+  const endStr = end.toISOString().slice(0, 10);
+  const today = todayStr();
+
+  const revenueSoFar = sales.filter((s) => s.sale_date >= g.start_date && s.sale_date <= endStr).reduce((sum, s) => sum + s.total_revenue, 0);
+  const revenuePct = Math.min(100, (revenueSoFar / g.target_amount) * 100);
+
+  const daysElapsed = Math.max(0, Math.min(g.duration_days, Math.floor((new Date(today) - start) / 86400000) + 1));
+  const timePct = Math.min(100, (daysElapsed / g.duration_days) * 100);
+  const daysLeft = Math.max(0, g.duration_days - daysElapsed);
+
+  const isAhead = revenuePct >= timePct;
+
+  box.innerHTML = `
+    <div class="goal-stats">
+      <div class="goal-stat"><div class="label">Target</div><div class="value">${fmt(g.target_amount)} tk</div></div>
+      <div class="goal-stat"><div class="label">Daily target</div><div class="value">${fmt(dailyTarget)} tk</div></div>
+      <div class="goal-stat"><div class="label">Selling days used</div><div class="value">~${totalSellingDays}</div></div>
+      <div class="goal-stat"><div class="label">Days left</div><div class="value">${daysLeft}</div></div>
+    </div>
+    <div class="goal-progress-row">
+      <div class="goal-progress-label"><span>Revenue: ${fmt(revenueSoFar)} / ${fmt(g.target_amount)} tk</span><span>${fmt(revenuePct)}%</span></div>
+      <div class="goal-bar-track"><div class="goal-bar-fill ${isAhead ? "ahead" : ""}" style="width:${revenuePct.toFixed(0)}%"></div></div>
+    </div>
+    <div class="goal-progress-row">
+      <div class="goal-progress-label"><span>Time elapsed: day ${daysElapsed} of ${g.duration_days}</span><span>${fmt(timePct)}%</span></div>
+      <div class="goal-bar-track"><div class="goal-bar-fill time" style="width:${timePct.toFixed(0)}%"></div></div>
+    </div>
+    <p class="hint" style="margin-top:8px;">${isAhead ? "🟢 On pace or ahead" : "🟡 A bit behind pace"} — based on calendar days elapsed, not just selling days, so treat it as a rough guide.</p>
+  `;
+}
+
+$("edit-goal-btn").addEventListener("click", () => {
+  $("goal-form").reset();
+  if (currentGoal) {
+    $("goal-amount").value = currentGoal.target_amount;
+    $("goal-duration").value = currentGoal.duration_days;
+    $("goal-selling-days").value = currentGoal.selling_days_per_week;
+    $("goal-start-date").value = currentGoal.start_date;
+  } else {
+    $("goal-start-date").value = todayStr();
+  }
+  updateGoalPreview();
+  $("goal-modal").classList.add("visible");
+});
+
+function updateGoalPreview() {
+  const amount = parseFloat($("goal-amount").value);
+  const duration = parseFloat($("goal-duration").value);
+  const sellingDays = parseFloat($("goal-selling-days").value);
+  if (amount > 0 && duration > 0 && sellingDays > 0) {
+    const totalSellingDays = Math.max(1, Math.round((duration / 7) * sellingDays));
+    const daily = amount / totalSellingDays;
+    $("goal-preview").innerHTML = `That's about <b>${totalSellingDays} selling days</b> in this period — <b>${fmt(daily)} tk/day</b> to hit your target.`;
+  } else {
+    $("goal-preview").textContent = "";
+  }
+}
+["goal-amount", "goal-duration", "goal-selling-days"].forEach((id) => $(id).addEventListener("input", updateGoalPreview));
+
+$("goal-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const payload = {
+    target_amount: parseFloat($("goal-amount").value),
+    duration_days: parseInt($("goal-duration").value),
+    selling_days_per_week: parseInt($("goal-selling-days").value),
+    start_date: $("goal-start-date").value,
+  };
+  const { error } = await sb.from("sales_goals").insert(payload);
+  if (error) return toast(error.message, true);
+  toast("Goal saved");
+  $("goal-modal").classList.remove("visible");
+  loadGoal();
+});
 
 // ============================================================
 // TODAY'S TARGET PROGRESS (on the Sales tab)

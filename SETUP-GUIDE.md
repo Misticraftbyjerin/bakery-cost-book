@@ -208,3 +208,30 @@ Your existing ingredients start at 0 stock (since the app has no way to know wha
 2. Just let it correct itself naturally as you log new purchases and sales going forward — it'll drift back toward accurate over time
 
 For the low-stock alerts to work, open each ingredient (Ingredients tab → Edit) and fill in "Buy more when stock falls to" — this is optional per ingredient, so you can set it only for the ones you care about tracking closely.
+
+---
+
+# Phase 9 — Dashboard: product type breakdown & revenue goal
+
+## What's new
+
+**Sales by product type.** The Dashboard now shows a card per product type (Jar Cake / Slice Cake / Whole Cake (Facebook) / Other) with quantity and revenue for the selected period, instead of one lumped "Cakes Sold" number.
+
+To use this, open each recipe (Cakes & Costing → Edit) and set its new **Product type** field. Sales from recipes you haven't tagged yet show up under "Untagged" so nothing is silently hidden — you'll always know if something needs tagging.
+
+*(Note: breaking this down further by flavour — e.g. 50 vanilla jar cakes vs 10 chocolate — is a good next step, but you mentioned that's for later. When you're ready, this slots in naturally as a "Flavour" field alongside Product Type.)*
+
+**Revenue Goal.** Set a target amount, how many days to hit it in, and how many days a week you sell — it works out your daily number and tracks progress with two bars: revenue achieved vs. calendar time elapsed. If the revenue bar is ahead of the time bar, you're pacing ahead of target.
+
+One honest note on the goal tracker: the "time elapsed" comparison uses calendar days, not specifically your selling days — so if you're 10 days into a 30-day goal but only had 5 actual selling days in that window, the bar will look more "behind" than you really are. Treat it as a rough guide, not a precise pace calculator.
+
+## Database changes
+Already applied directly — nothing for you to run.
+
+## To install
+Re-upload `index.html`, `app.js`, `style.css` to GitHub.
+
+## Try it
+1. Tag your recipes with Product Type (Jar Cake, Slice Cake, Whole Cake (Facebook))
+2. Dashboard → check the new cards at the top
+3. Dashboard → "Set / change goal" → try 15000 tk, 30 days, 4 selling days/week, start today — it should show ≈ 875 tk/day
