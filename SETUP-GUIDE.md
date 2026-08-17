@@ -181,3 +181,30 @@ Re-upload `index.html`, `app.js`, `style.css` to GitHub.
 5. Quantity in this package: `30`, Unit: `piece / each`
 6. Amount: whatever you paid for the whole case
 7. Save — the Eggs ingredient now exists (or is updated) with the correct per-egg cost, and the purchase is logged in Expenses.
+
+---
+
+# Phase 8 — Inventory tab
+
+## What's new
+A new **Inventory** tab that tracks how much of each ingredient you actually have on hand — automatically.
+
+- **Stock goes up** when you log a purchase (Expenses → Category: Ingredients)
+- **Stock goes down** when you log a sale (based on how much of that ingredient the recipe uses per unit)
+- Editing/deleting a sale correctly adjusts stock back — the numbers stay accurate even if you fix a mistake later
+- **Buy Soon alerts** — set a "reorder threshold" per ingredient (in the Ingredients tab form) and it'll flag automatically when stock falls to or below that level
+- **Usual reorder amount** — an optional field where you note how much you normally buy at once. This is your own call — the app shows you **Avg Weekly Use** per ingredient (from the last 30 days of sales) so you have real data to help decide: fast-moving ingredients are good candidates for buying more at once, slow movers for buying less
+- **Purchases Summary** — for any date range (This Month / Last Month / All Time / Custom), see how many times you bought each ingredient, total units, and total money spent
+
+## Database changes
+Already applied directly — nothing for you to run.
+
+## To install
+Re-upload `index.html`, `app.js`, `style.css` to GitHub.
+
+## Setting it up
+Your existing ingredients start at 0 stock (since the app has no way to know what you had on hand before today). Two ways to fix this:
+1. Go to Inventory tab → click the ✎ next to each ingredient → enter what you actually have right now, **or**
+2. Just let it correct itself naturally as you log new purchases and sales going forward — it'll drift back toward accurate over time
+
+For the low-stock alerts to work, open each ingredient (Ingredients tab → Edit) and fill in "Buy more when stock falls to" — this is optional per ingredient, so you can set it only for the ones you care about tracking closely.

@@ -78,6 +78,7 @@ async function onLoggedIn(user) {
   await loadSales();
   await loadExpenses();
   await loadCashLogs();
+  renderInventory();
   renderDashboard();
 }
 
@@ -122,6 +123,7 @@ async function loadIngredients() {
   if (error) return toast(error.message, true);
   ingredients = data;
   renderIngredients();
+  renderInventory();
 }
 
 function renderIngredients(filterText = "") {
@@ -194,6 +196,8 @@ function openIngredientModal(ing = null) {
     $("ing-package-qty").value = ing.package_qty;
     $("ing-base-unit").value = ing.base_unit;
     $("ing-package-price").value = ing.package_price;
+    $("ing-reorder-threshold").value = ing.reorder_threshold ?? "";
+    $("ing-reorder-qty").value = ing.reorder_qty ?? "";
   }
   computeUnitPricePreview();
   $("ingredient-modal").classList.add("visible");
@@ -223,7 +227,7 @@ async function uploadImage(file, folder) {
 // Shared save logic: used by the Ingredients tab form AND by the Expense tab
 // when logging an ingredient restock. Creates or updates an ingredient,
 // and logs price history whenever the unit price actually changes.
-async function saveIngredient({ id, name, item_code, category_id, packaging_label, package_qty, base_unit, package_price, image_url }) {
+async function saveIngredient({ id, name, item_code, category_id, packaging_label, package_qty, base_unit, package_price, image_url, reorder_threshold, reorder_qty }) {
   const unit_price = package_price / package_qty;
   const payload = {
     name,
@@ -236,6 +240,8 @@ async function saveIngredient({ id, name, item_code, category_id, packaging_labe
     unit_price,
     updated_at: new Date().toISOString(),
   };
+  if (reorder_threshold !== undefined) payload.reorder_threshold = reorder_threshold || null;
+  if (reorder_qty !== undefined) payload.reorder_qty = reorder_qty || null;
   if (image_url) payload.image_url = image_url;
 
   let ingredientId = id;
@@ -247,6 +253,8 @@ async function saveIngredient({ id, name, item_code, category_id, packaging_labe
     const { error } = await sb.from("ingredients").update(payload).eq("id", id);
     if (error) throw error;
   } else {
+    // brand-new ingredient: what you're entering IS what you currently have in hand
+    payload.current_stock = package_qty;
     const { data, error } = await sb.from("ingredients").insert(payload).select().single();
     if (error) throw error;
     ingredientId = data.id;
@@ -256,6 +264,35 @@ async function saveIngredient({ id, name, item_code, category_id, packaging_labe
     await sb.from("ingredient_price_history").insert({ ingredient_id: ingredientId, unit_price });
   }
   return { id: ingredientId, unit_price };
+}
+
+// Adjusts one ingredient's stock by `delta` (positive to add, negative to consume).
+// Updates the database AND the in-memory `ingredients` array immediately, so that
+// several adjustments to the same ingredient within one action (e.g. reversing an
+// old sale then applying an edited one) compound correctly instead of overwriting.
+async function adjustStock(ingredientId, delta) {
+  const ing = ingredients.find((i) => i.id === ingredientId);
+  if (!ing) return;
+  const newStock = (ing.current_stock || 0) + delta;
+  const { error } = await sb.from("ingredients").update({ current_stock: newStock }).eq("id", ingredientId);
+  if (!error) ing.current_stock = newStock;
+}
+
+// Applies (sign = -1) or reverses (sign = +1) the ingredient consumption for one sale.
+// recipe_ingredients.quantity is the amount used for the WHOLE batch (yield_count units),
+// so per-unit-sold usage is quantity / yield_count.
+async function applySaleStockConsumption(recipeId, quantitySold, sign) {
+  const recipe = recipes.find((r) => r.id === recipeId);
+  if (!recipe || !quantitySold) return;
+  const deltas = {};
+  recipe.recipe_ingredients.forEach((li) => {
+    if (!li.ingredient_id) return;
+    const perUnitQty = li.quantity / (recipe.yield_count || 1);
+    deltas[li.ingredient_id] = (deltas[li.ingredient_id] || 0) + sign * perUnitQty * quantitySold;
+  });
+  for (const [ingId, delta] of Object.entries(deltas)) {
+    await adjustStock(ingId, delta);
+  }
 }
 
 $("ingredient-form").addEventListener("submit", async (e) => {
@@ -278,6 +315,8 @@ $("ingredient-form").addEventListener("submit", async (e) => {
       base_unit: $("ing-base-unit").value,
       package_price: parseFloat($("ing-package-price").value),
       image_url,
+      reorder_threshold: parseFloat($("ing-reorder-threshold").value) || null,
+      reorder_qty: parseFloat($("ing-reorder-qty").value) || null,
     });
   } catch (err) {
     return toast(err.message, true);
@@ -300,6 +339,7 @@ async function loadRecipes() {
   recipes = data;
   renderRecipes();
   renderTargetProgress();
+  renderInventory();
 }
 
 function recipeCost(recipe) {
@@ -655,6 +695,7 @@ async function loadSales() {
   sales = data;
   renderSales();
   renderTargetProgress();
+  renderInventory();
 }
 
 function renderSales() {
@@ -700,10 +741,13 @@ window.editSale = (id) => openSaleModal(sales.find((s) => s.id === id));
 
 window.deleteSale = async (id) => {
   if (!confirm("Delete this sale record?")) return;
+  const sale = sales.find((s) => s.id === id);
+  if (sale) await applySaleStockConsumption(sale.recipe_id, sale.quantity, 1); // give the stock back
   const { error } = await sb.from("sales").delete().eq("id", id);
   if (error) return toast(error.message, true);
   toast("Sale deleted");
   loadSales();
+  loadIngredients();
   renderDashboard();
 };
 
@@ -778,9 +822,17 @@ $("sale-form").addEventListener("submit", async (e) => {
   const { error } = id ? await sb.from("sales").update(payload).eq("id", id) : await sb.from("sales").insert(payload);
   if (error) return toast(error.message, true);
 
+  // keep stock accurate: if editing, undo the old sale's consumption first, then apply the new one
+  if (id) {
+    const oldSale = sales.find((s) => s.id === id);
+    if (oldSale) await applySaleStockConsumption(oldSale.recipe_id, oldSale.quantity, 1);
+  }
+  await applySaleStockConsumption(recipe.id, payload.quantity, -1);
+
   toast("Sale saved");
   $("sale-modal").classList.remove("visible");
   loadSales();
+  loadIngredients();
   renderDashboard();
 });
 // ============================================================
@@ -818,6 +870,8 @@ async function loadExpenses() {
   if (error) return toast(error.message, true);
   expenses = data;
   renderExpenses();
+  renderInventory();
+  renderPurchasesSummary();
 }
 
 function renderExpenses() {
@@ -1033,6 +1087,8 @@ $("expense-form").addEventListener("submit", async (e) => {
         });
         ingredientId = result.id;
         ingredientName = expSelectedIngredient.name;
+        // this is a restock of something you already have — add to what's left, don't replace it
+        await adjustStock(ingredientId, qty);
       }
     } catch (err) {
       return toast(err.message, true);
@@ -1044,6 +1100,7 @@ $("expense-form").addEventListener("submit", async (e) => {
       category: "Ingredients",
       amount,
       quantity: packaging_label || `${qty}${unit}`,
+      units_purchased: qty,
       notes: $("exp-notes").value.trim() || null,
       expense_date: $("exp-date").value,
     };
@@ -1464,3 +1521,153 @@ $("export-backup-btn").addEventListener("click", async () => {
     btn.disabled = false;
   }
 });
+
+// ============================================================
+// INVENTORY
+// ============================================================
+let inventorySearchTerm = "";
+$("inventory-search").addEventListener("input", (e) => {
+  inventorySearchTerm = e.target.value.trim().toLowerCase();
+  renderInventory();
+});
+
+// Avg weekly usage per ingredient, based on the last 30 days of sales
+function computeAvgWeeklyUsage() {
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 30);
+  const cutoffStr = cutoff.toISOString().slice(0, 10);
+  const recentSales = sales.filter((s) => s.sale_date >= cutoffStr);
+
+  const totalUsage = {};
+  recentSales.forEach((s) => {
+    const recipe = recipes.find((r) => r.id === s.recipe_id);
+    if (!recipe) return;
+    recipe.recipe_ingredients.forEach((li) => {
+      if (!li.ingredient_id) return;
+      const perUnitQty = li.quantity / (recipe.yield_count || 1);
+      totalUsage[li.ingredient_id] = (totalUsage[li.ingredient_id] || 0) + perUnitQty * s.quantity;
+    });
+  });
+
+  const weeks = 30 / 7;
+  const weekly = {};
+  Object.entries(totalUsage).forEach(([id, total]) => (weekly[id] = total / weeks));
+  return weekly;
+}
+
+function renderInventory() {
+  const weeklyUsage = computeAvgWeeklyUsage();
+  const term = inventorySearchTerm;
+  const filtered = term ? ingredients.filter((i) => i.name.toLowerCase().includes(term) || (i.item_code || "").toLowerCase().includes(term)) : ingredients;
+
+  // low stock alerts
+  const lowStock = ingredients.filter((i) => i.reorder_threshold != null && (i.current_stock || 0) <= i.reorder_threshold);
+  const lowSection = $("low-stock-section");
+  if (lowStock.length) {
+    lowSection.style.display = "";
+    $("low-stock-list").innerHTML = lowStock
+      .map((i) => {
+        const stock = i.current_stock || 0;
+        const pct = i.reorder_threshold > 0 ? Math.min(100, (stock / i.reorder_threshold) * 100) : 0;
+        const suggestion = i.reorder_qty ? ` · usually buy ${fmt(i.reorder_qty)} ${i.base_unit}` : "";
+        return `
+        <div class="bar-row">
+          <span class="bar-label">${i.name}</span>
+          <div class="bar-track"><div class="bar-fill" style="width:${pct.toFixed(0)}%; background: var(--danger);"></div></div>
+          <span class="bar-value">${fmt(stock)} / ${fmt(i.reorder_threshold)} ${i.base_unit}${suggestion}</span>
+        </div>`;
+      })
+      .join("");
+  } else {
+    lowSection.style.display = "none";
+  }
+
+  // main table — low-stock items first, then by usage rate (busiest ingredients near the top)
+  const tbody = $("inventory-tbody");
+  if (!ingredients.length) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state">No ingredients yet</div></td></tr>`;
+    return;
+  }
+  if (!filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state">No matches</div></td></tr>`;
+    return;
+  }
+  const sorted = filtered.slice().sort((a, b) => {
+    const aLow = a.reorder_threshold != null && (a.current_stock || 0) <= a.reorder_threshold;
+    const bLow = b.reorder_threshold != null && (b.current_stock || 0) <= b.reorder_threshold;
+    if (aLow !== bLow) return aLow ? -1 : 1;
+    return (weeklyUsage[b.id] || 0) - (weeklyUsage[a.id] || 0);
+  });
+
+  tbody.innerHTML = sorted
+    .map((i) => {
+      const stock = i.current_stock || 0;
+      const isLow = i.reorder_threshold != null && stock <= i.reorder_threshold;
+      const weekly = weeklyUsage[i.id] || 0;
+      return `
+      <tr>
+        <td>${i.name}${i.item_code ? `<span class="code-tag">${i.item_code}</span>` : ""}</td>
+        <td class="num">${fmt(stock)} ${i.base_unit}</td>
+        <td class="num">${i.reorder_threshold != null ? fmt(i.reorder_threshold) + " " + i.base_unit : "—"}</td>
+        <td class="num">${i.reorder_qty != null ? fmt(i.reorder_qty) + " " + i.base_unit : "—"}</td>
+        <td class="num">${weekly > 0 ? fmt(weekly) + " " + i.base_unit + "/wk" : "—"}</td>
+        <td>${isLow ? '<span class="margin-badge margin-low">Buy soon</span>' : '<span class="margin-badge margin-good">OK</span>'}</td>
+        <td class="row-actions"><button onclick="adjustStockPrompt('${i.id}')" title="Correct stock count">✎</button></td>
+      </tr>`;
+    })
+    .join("");
+}
+
+window.adjustStockPrompt = async (id) => {
+  const ing = ingredients.find((i) => i.id === id);
+  if (!ing) return;
+  const val = prompt(`Correct the current stock for ${ing.name} (in ${ing.base_unit}):`, fmt(ing.current_stock || 0));
+  if (val === null) return;
+  const num = parseFloat(val);
+  if (isNaN(num) || num < 0) return toast("Enter a valid number", true);
+  const { error } = await sb.from("ingredients").update({ current_stock: num }).eq("id", id);
+  if (error) return toast(error.message, true);
+  toast("Stock updated");
+  loadIngredients();
+};
+
+// ---- Purchases Summary (date-filtered) ----
+const purchasesFilterState = { preset: "this-month" };
+setupDateFilter("purchases", (preset) => {
+  purchasesFilterState.preset = preset;
+  renderPurchasesSummary();
+});
+
+function renderPurchasesSummary() {
+  const { from, to } = resolveDateRange("purchases", purchasesFilterState.preset);
+  const ingExpenses = expenses.filter((e) => e.category === "Ingredients" && inDateRange(e.expense_date, from, to));
+
+  const grouped = {};
+  ingExpenses.forEach((e) => {
+    const key = e.item_name;
+    if (!grouped[key]) grouped[key] = { name: key, count: 0, totalUnits: 0, totalSpent: 0, unit: "" };
+    grouped[key].count += 1;
+    grouped[key].totalSpent += e.amount;
+    if (e.units_purchased) grouped[key].totalUnits += Number(e.units_purchased);
+    const ing = ingredients.find((i) => i.id === e.ingredient_id);
+    if (ing) grouped[key].unit = ing.base_unit;
+  });
+
+  const rows = Object.values(grouped).sort((a, b) => b.totalSpent - a.totalSpent);
+  const tbody = $("purchases-summary-tbody");
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="4"><div class="empty-state">No ingredient purchases logged in this period</div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = rows
+    .map(
+      (r) => `
+    <tr>
+      <td>${r.name}</td>
+      <td class="num">${r.count}</td>
+      <td class="num">${r.totalUnits ? fmt(r.totalUnits) + (r.unit ? " " + r.unit : "") : "—"}</td>
+      <td class="num">${fmt(r.totalSpent)} tk</td>
+    </tr>`
+    )
+    .join("");
+}
