@@ -150,7 +150,7 @@ function renderIngredients(filterText = "") {
       <div class="thumb">${ing.image_url ? `<img src="${ing.image_url}">` : "🧂"}</div>
       <div class="body">
         <div class="name">${ing.name}${ing.item_code ? `<span class="code-tag">${ing.item_code}</span>` : ""}</div>
-        <div class="cat">${ing.categories?.name || "Uncategorized"}</div>
+        <div class="cat">${ing.categories?.name || "Uncategorized"}${ing.packaging_label ? ` · ${ing.packaging_label}` : ""}</div>
         <div class="price-row">
           <span class="price-tag">${fmt(ing.unit_price)} tk/${ing.base_unit}</span>
         </div>
@@ -190,6 +190,7 @@ function openIngredientModal(ing = null) {
     $("ing-name").value = ing.name;
     $("ing-code").value = ing.item_code || "";
     $("ing-category").value = ing.category_id || "";
+    $("ing-packaging-label").value = ing.packaging_label || "";
     $("ing-package-qty").value = ing.package_qty;
     $("ing-base-unit").value = ing.base_unit;
     $("ing-package-price").value = ing.package_price;
@@ -219,47 +220,67 @@ async function uploadImage(file, folder) {
   return sb.storage.from("bakery-images").getPublicUrl(path).data.publicUrl;
 }
 
-$("ingredient-form").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const id = $("ing-id").value;
-  const package_qty = parseFloat($("ing-package-qty").value);
-  const package_price = parseFloat($("ing-package-price").value);
+// Shared save logic: used by the Ingredients tab form AND by the Expense tab
+// when logging an ingredient restock. Creates or updates an ingredient,
+// and logs price history whenever the unit price actually changes.
+async function saveIngredient({ id, name, item_code, category_id, packaging_label, package_qty, base_unit, package_price, image_url }) {
   const unit_price = package_price / package_qty;
-  const imageFile = $("ing-image").files[0];
-
   const payload = {
-    name: $("ing-name").value.trim(),
-    item_code: $("ing-code").value.trim() || null,
-    category_id: $("ing-category").value || null,
-    base_unit: $("ing-base-unit").value,
+    name,
+    item_code: item_code || null,
+    category_id: category_id || null,
+    packaging_label: packaging_label || null,
+    base_unit,
     package_qty,
     package_price,
     unit_price,
     updated_at: new Date().toISOString(),
   };
-
-  if (imageFile) {
-    const url = await uploadImage(imageFile, "ingredients");
-    if (url) payload.image_url = url;
-  }
+  if (image_url) payload.image_url = image_url;
 
   let ingredientId = id;
   let priceChanged = true;
 
   if (id) {
     const existing = ingredients.find((i) => i.id === id);
-    priceChanged = existing.unit_price !== unit_price;
+    priceChanged = !existing || existing.unit_price !== unit_price;
     const { error } = await sb.from("ingredients").update(payload).eq("id", id);
-    if (error) return toast(error.message, true);
+    if (error) throw error;
   } else {
     const { data, error } = await sb.from("ingredients").insert(payload).select().single();
-    if (error) return toast(error.message, true);
+    if (error) throw error;
     ingredientId = data.id;
   }
 
-  // log price history whenever price changes (or on first creation)
   if (priceChanged) {
     await sb.from("ingredient_price_history").insert({ ingredient_id: ingredientId, unit_price });
+  }
+  return { id: ingredientId, unit_price };
+}
+
+$("ingredient-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const id = $("ing-id").value;
+  const imageFile = $("ing-image").files[0];
+  let image_url = null;
+  if (imageFile) {
+    image_url = await uploadImage(imageFile, "ingredients");
+  }
+
+  try {
+    await saveIngredient({
+      id: id || null,
+      name: $("ing-name").value.trim(),
+      item_code: $("ing-code").value.trim(),
+      category_id: $("ing-category").value,
+      packaging_label: $("ing-packaging-label").value.trim(),
+      package_qty: parseFloat($("ing-package-qty").value),
+      base_unit: $("ing-base-unit").value,
+      package_price: parseFloat($("ing-package-price").value),
+      image_url,
+    });
+  } catch (err) {
+    return toast(err.message, true);
   }
 
   toast("Ingredient saved");
@@ -847,40 +868,73 @@ function openExpenseModal(exp = null) {
   $("exp-id").value = exp ? exp.id : "";
   $("exp-ingredient-id").value = "";
   $("expense-modal-title").textContent = exp ? "Edit expense" : "Log expense";
-  $("exp-date").value = exp ? exp.expense_date : new Date().toISOString().slice(0, 10);
-  $("exp-ing-picked-hint").textContent = "";
+  $("exp-date").value = exp ? exp.expense_date : todayStr();
+  $("exp-category").value = exp ? exp.category : "Packaging";
+  $("exp-amount").value = exp ? exp.amount : "";
+  $("exp-notes").value = exp ? exp.notes || "" : "";
+  $("exp-item").value = "";
+  $("exp-qty").value = "";
+  $("exp-new-code").value = "";
+  $("exp-new-name").value = "";
   $("exp-ing-search").value = "";
-  setExpenseItemMode("new");
+  $("exp-ing-packaging-label").value = "";
+  $("exp-ing-qty").value = "";
+  $("exp-ing-unit").value = "g";
+  populateExpNewIngCategory();
+  setExpIngMode("existing");
+  expSelectedIngredient = null;
 
-  if (exp) {
-    $("exp-item").value = exp.item_name;
-    $("exp-category").value = exp.category;
-    $("exp-amount").value = exp.amount;
-    $("exp-qty").value = exp.quantity || "";
-    $("exp-notes").value = exp.notes || "";
-    if (exp.ingredient_id) {
-      $("exp-ingredient-id").value = exp.ingredient_id;
-      $("exp-ing-search").value = exp.item_name;
-      setExpenseItemMode("existing");
+  if (exp && exp.category === "Ingredients" && exp.ingredient_id) {
+    const ing = ingredients.find((i) => i.id === exp.ingredient_id);
+    if (ing) {
+      expSelectedIngredient = ing;
+      $("exp-ing-search").value = ing.name;
+      $("exp-ing-packaging-label").value = ing.packaging_label || "";
+      $("exp-ing-qty").value = ing.package_qty;
+      $("exp-ing-unit").value = ing.base_unit;
     }
+  } else if (exp) {
+    $("exp-item").value = exp.item_name;
+    $("exp-qty").value = exp.quantity || "";
   }
+
+  updateExpenseFormMode();
+  updateExpIngPreview();
   $("expense-modal").classList.add("visible");
 }
 
-function setExpenseItemMode(mode) {
-  $("exp-item-mode")
-    .querySelectorAll("button")
-    .forEach((b) => b.classList.toggle("active", b.dataset.mode === mode));
-  $("exp-item-new").style.display = mode === "new" ? "" : "none";
-  $("exp-item-existing").style.display = mode === "existing" ? "" : "none";
-  if (mode === "new") $("exp-ingredient-id").value = "";
+function populateExpNewIngCategory() {
+  $("exp-new-ing-category").innerHTML = categories.map((c) => `<option value="${c.id}">${c.name}</option>`).join("");
 }
 
-$("exp-item-mode")
-  .querySelectorAll("button")
-  .forEach((btn) => btn.addEventListener("click", () => setExpenseItemMode(btn.dataset.mode)));
+function updateExpenseFormMode() {
+  const isIngredient = $("exp-category").value === "Ingredients";
+  $("exp-simple-section").style.display = isIngredient ? "none" : "";
+  $("exp-simple-qty-wrap").style.display = isIngredient ? "none" : "";
+  $("exp-ingredient-section").style.display = isIngredient ? "" : "none";
+}
+$("exp-category").addEventListener("change", updateExpenseFormMode);
 
-// searchable ingredient picker for the expense form (single instance, not per-line)
+function setExpIngMode(mode) {
+  $("exp-ing-mode")
+    .querySelectorAll("button")
+    .forEach((b) => b.classList.toggle("active", b.dataset.mode === mode));
+  $("exp-ing-existing-fields").style.display = mode === "existing" ? "" : "none";
+  $("exp-ing-new-fields").style.display = mode === "new" ? "" : "none";
+  if (mode === "new") {
+    expSelectedIngredient = null;
+    $("exp-ing-search").value = "";
+    $("exp-ing-packaging-label").value = "";
+    $("exp-ing-qty").value = "";
+    $("exp-ing-unit").value = "g";
+  }
+}
+$("exp-ing-mode")
+  .querySelectorAll("button")
+  .forEach((btn) => btn.addEventListener("click", () => setExpIngMode(btn.dataset.mode)));
+
+// searchable ingredient picker for the "Existing Ingredient" sub-mode
+let expSelectedIngredient = null;
 const expIngSearch = $("exp-ing-search");
 const expIngDropdown = $("exp-ing-dropdown");
 
@@ -896,67 +950,124 @@ function renderExpIngDropdown(term) {
           (ing) => `
       <div class="ing-option" data-id="${ing.id}">
         <span class="opt-name">${ing.name}${ing.item_code ? `<span class="code-tag">${ing.item_code}</span>` : ""}</span>
-        <span class="opt-meta">${ing.package_qty}${ing.base_unit} pack</span>
+        <span class="opt-meta">${ing.packaging_label || ing.package_qty + ing.base_unit}</span>
       </div>`
         )
         .join("")
-    : `<div class="ing-option no-match">No ingredients match</div>`;
+    : `<div class="ing-option no-match">No ingredients match — switch to "New Ingredient" above</div>`;
   expIngDropdown.classList.add("open");
 
   expIngDropdown.querySelectorAll(".ing-option[data-id]").forEach((opt) => {
     opt.addEventListener("click", () => {
       const ing = ingredients.find((i) => i.id === opt.dataset.id);
-      $("exp-ingredient-id").value = ing.id;
+      expSelectedIngredient = ing;
       expIngSearch.value = ing.name;
-      $("exp-item").value = ing.name; // kept in sync, used as the saved item name either way
-      $("exp-category").value = "Ingredients";
-      if (!$("exp-qty").value) $("exp-qty").value = `${ing.package_qty}${ing.base_unit}`;
-      $("exp-ing-picked-hint").textContent = `Linked to your Ingredients list — price is NOT pulled in, so this expense won't change if you update ${ing.name}'s price later.`;
+      $("exp-ing-packaging-label").value = ing.packaging_label || "";
+      $("exp-ing-qty").value = ing.package_qty;
+      $("exp-ing-unit").value = ing.base_unit;
       expIngDropdown.classList.remove("open");
+      updateExpIngPreview();
     });
   });
 }
 expIngSearch.addEventListener("focus", () => renderExpIngDropdown(""));
-expIngSearch.addEventListener("input", () => {
-  $("exp-ingredient-id").value = "";
-  $("exp-ing-picked-hint").textContent = "";
-  renderExpIngDropdown(expIngSearch.value);
-});
+expIngSearch.addEventListener("input", () => renderExpIngDropdown(expIngSearch.value));
 expIngSearch.addEventListener("blur", () => {
-  setTimeout(() => expIngDropdown.classList.remove("open"), 150);
+  setTimeout(() => {
+    expIngSearch.value = expSelectedIngredient ? expSelectedIngredient.name : "";
+    expIngDropdown.classList.remove("open");
+  }, 150);
 });
+
+function updateExpIngPreview() {
+  const qty = parseFloat($("exp-ing-qty").value);
+  const amount = parseFloat($("exp-amount").value);
+  const unit = $("exp-ing-unit").value;
+  $("exp-ing-unit-price-preview").innerHTML = qty > 0 && amount >= 0 ? `Works out to <b>${fmt(amount / qty)} tk / ${unit}</b>` : "";
+}
+["exp-ing-qty", "exp-amount", "exp-ing-unit"].forEach((id) => $(id).addEventListener("input", updateExpIngPreview));
 
 $("expense-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const id = $("exp-id").value;
-  const usingExisting = $("exp-item-mode").querySelector("button.active").dataset.mode === "existing";
+  const category = $("exp-category").value;
+  const amount = parseFloat($("exp-amount").value);
+  let payload;
 
-  if (usingExisting && !$("exp-ingredient-id").value) {
-    toast("Pick an ingredient from the list, or switch to New Item", true);
-    return;
+  if (category === "Ingredients") {
+    const isNew = $("exp-ing-mode").querySelector("button.active").dataset.mode === "new";
+    const qty = parseFloat($("exp-ing-qty").value);
+    const unit = $("exp-ing-unit").value;
+    const packaging_label = $("exp-ing-packaging-label").value.trim();
+
+    if (!qty || qty <= 0) return toast("Enter the quantity in this package", true);
+
+    let ingredientId, ingredientName;
+    try {
+      if (isNew) {
+        const name = $("exp-new-name").value.trim();
+        if (!name) return toast("Enter the ingredient name", true);
+        const result = await saveIngredient({
+          id: null,
+          name,
+          item_code: $("exp-new-code").value.trim(),
+          category_id: $("exp-new-ing-category").value,
+          packaging_label,
+          package_qty: qty,
+          base_unit: unit,
+          package_price: amount,
+        });
+        ingredientId = result.id;
+        ingredientName = name;
+      } else {
+        if (!expSelectedIngredient) return toast("Pick an existing ingredient, or switch to New Ingredient", true);
+        const result = await saveIngredient({
+          id: expSelectedIngredient.id,
+          name: expSelectedIngredient.name,
+          item_code: expSelectedIngredient.item_code,
+          category_id: expSelectedIngredient.category_id,
+          packaging_label,
+          package_qty: qty,
+          base_unit: unit,
+          package_price: amount,
+        });
+        ingredientId = result.id;
+        ingredientName = expSelectedIngredient.name;
+      }
+    } catch (err) {
+      return toast(err.message, true);
+    }
+
+    payload = {
+      item_name: ingredientName,
+      ingredient_id: ingredientId,
+      category: "Ingredients",
+      amount,
+      quantity: packaging_label || `${qty}${unit}`,
+      notes: $("exp-notes").value.trim() || null,
+      expense_date: $("exp-date").value,
+    };
+  } else {
+    const itemName = $("exp-item").value.trim();
+    if (!itemName) return toast("Enter an item name", true);
+    payload = {
+      item_name: itemName,
+      ingredient_id: null,
+      category,
+      amount,
+      quantity: $("exp-qty").value.trim() || null,
+      notes: $("exp-notes").value.trim() || null,
+      expense_date: $("exp-date").value,
+    };
   }
 
-  const itemName = usingExisting ? $("exp-ing-search").value.trim() : $("exp-item").value.trim();
-  if (!itemName) {
-    toast("Enter an item name", true);
-    return;
-  }
-
-  const payload = {
-    item_name: itemName,
-    ingredient_id: usingExisting ? $("exp-ingredient-id").value : null,
-    category: $("exp-category").value,
-    amount: parseFloat($("exp-amount").value),
-    quantity: $("exp-qty").value.trim() || null,
-    notes: $("exp-notes").value.trim() || null,
-    expense_date: $("exp-date").value,
-  };
   const { error } = id ? await sb.from("expenses").update(payload).eq("id", id) : await sb.from("expenses").insert(payload);
   if (error) return toast(error.message, true);
 
-  toast("Expense saved");
+  toast(category === "Ingredients" ? "Expense saved & ingredient updated" : "Expense saved");
   $("expense-modal").classList.remove("visible");
   loadExpenses();
+  loadIngredients();
   renderDashboard();
 });
 

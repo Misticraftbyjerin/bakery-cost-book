@@ -280,37 +280,73 @@
       <input type="hidden" id="exp-id" />
       <input type="hidden" id="exp-ingredient-id" />
 
-      <div class="mode-toggle" id="exp-item-mode">
-        <button type="button" data-mode="new" class="active">New Item</button>
-        <button type="button" data-mode="existing">From Ingredients</button>
-      </div>
+      <label>Category</label>
+      <select id="exp-category">
+        <option>Packaging</option>
+        <option>Equipment</option>
+        <option>Ingredients</option>
+        <option>Other</option>
+      </select>
 
-      <div id="exp-item-new">
+      <!-- SIMPLE MODE: Packaging / Equipment / Other -->
+      <div id="exp-simple-section">
         <label>Item</label>
         <input type="text" id="exp-item" placeholder="e.g. Cake boards, New round mold" />
       </div>
 
-      <div id="exp-item-existing" style="display:none;">
-        <label>Ingredient</label>
-        <div class="ing-picker">
-          <input type="text" class="ing-search" id="exp-ing-search" placeholder="Search ingredient or code…" autocomplete="off" />
-          <div class="ing-dropdown" id="exp-ing-dropdown"></div>
+      <!-- INGREDIENT MODE: only shown when Category = Ingredients -->
+      <div id="exp-ingredient-section" style="display:none;">
+        <div class="mode-toggle" id="exp-ing-mode">
+          <button type="button" data-mode="existing" class="active">Existing Ingredient</button>
+          <button type="button" data-mode="new">New Ingredient</button>
         </div>
-        <p class="hint" id="exp-ing-picked-hint" style="margin-top:6px;"></p>
+
+        <div id="exp-ing-existing-fields">
+          <label>Ingredient</label>
+          <div class="ing-picker">
+            <input type="text" class="ing-search" id="exp-ing-search" placeholder="Search ingredient or code…" autocomplete="off" />
+            <div class="ing-dropdown" id="exp-ing-dropdown"></div>
+          </div>
+        </div>
+
+        <div id="exp-ing-new-fields" style="display:none;">
+          <div class="row2">
+            <div>
+              <label>Item Code <span class="opt">(optional)</span></label>
+              <input type="text" id="exp-new-code" placeholder="e.g. VAN-DREEM" />
+            </div>
+            <div>
+              <label>Ingredient name</label>
+              <input type="text" id="exp-new-name" placeholder="e.g. Dreem Vanilla Essence" />
+            </div>
+          </div>
+          <label>Ingredient category</label>
+          <select id="exp-new-ing-category"></select>
+        </div>
+
+        <label>Packaging <span class="opt">(optional — e.g. "Case/30EA", "Pack/4EA", "1 DZ")</span></label>
+        <input type="text" id="exp-ing-packaging-label" placeholder="e.g. Case/30EA" />
+
+        <div class="row2">
+          <div>
+            <label>Quantity in this package</label>
+            <input type="number" id="exp-ing-qty" min="0" step="any" placeholder="e.g. 30" />
+          </div>
+          <div>
+            <label>Unit</label>
+            <select id="exp-ing-unit">
+              <option value="g">grams (g)</option>
+              <option value="ml">millilitres (ml)</option>
+              <option value="piece">piece / each</option>
+            </select>
+          </div>
+        </div>
+        <div class="unit-price-preview" id="exp-ing-unit-price-preview"></div>
       </div>
 
-      <div class="row3">
+      <div class="row2">
         <div>
-          <label>Category</label>
-          <select id="exp-category">
-            <option>Packaging</option>
-            <option>Equipment</option>
-            <option>Ingredients</option>
-            <option>Other</option>
-          </select>
-        </div>
-        <div>
-          <label>Amount (tk) <span class="opt">(what you actually paid — always entered by hand)</span></label>
+          <label>Amount (tk) <span class="opt">(what you actually paid)</span></label>
           <input type="number" id="exp-amount" min="0" step="any" required />
         </div>
         <div>
@@ -319,8 +355,10 @@
         </div>
       </div>
 
-      <label>Quantity <span class="opt">(optional, free text — e.g. "2 dozen", "1 mold")</span></label>
-      <input type="text" id="exp-qty" />
+      <div id="exp-simple-qty-wrap">
+        <label>Quantity <span class="opt">(optional, free text — e.g. "2 dozen", "1 mold")</span></label>
+        <input type="text" id="exp-qty" />
+      </div>
 
       <label>Notes <span class="opt">(optional)</span></label>
       <textarea id="exp-notes" rows="2"></textarea>
@@ -398,17 +436,20 @@
       <label>Category</label>
       <select id="ing-category"></select>
 
+      <label>Packaging <span class="opt">(optional, however you buy it — e.g. "Case/30EA", "Pack/4EA", "1 DZ")</span></label>
+      <input type="text" id="ing-packaging-label" placeholder="e.g. Case/30EA" />
+
       <div class="row3">
         <div>
-          <label>Package size</label>
-          <input type="number" id="ing-package-qty" placeholder="1000" min="0" step="any" required />
+          <label>Quantity in package</label>
+          <input type="number" id="ing-package-qty" placeholder="e.g. 30" min="0" step="any" required />
         </div>
         <div>
           <label>Unit</label>
           <select id="ing-base-unit">
             <option value="g">grams (g)</option>
             <option value="ml">millilitres (ml)</option>
-            <option value="piece">piece</option>
+            <option value="piece">piece / each</option>
           </select>
         </div>
         <div>

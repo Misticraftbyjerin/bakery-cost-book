@@ -156,3 +156,28 @@ Already applied directly — nothing for you to run.
 
 ## To install
 Re-upload `index.html` and `app.js` to GitHub (style.css also changed, upload that too — all 3 files this time).
+
+---
+
+# Phase 7 — Smarter ingredient packaging & expense-driven restocking
+
+## What's new
+- **Packaging label** on ingredients — an optional free-text field for however you actually buy it: `Case/30EA`, `Pack/4EA`, `1 DZ`, `28ML bottle`, etc. This is just a readable label; the actual cost math still uses Quantity + Unit + Price, same as before.
+- **The Expense form is now smart about ingredients.** When you set Category to "Ingredients," it shows two options:
+  - **Existing Ingredient** — search and pick one you already have. Saving updates that ingredient's packaging/price (and logs price history if the price changed) *and* logs the expense — one entry, two things updated.
+  - **New Ingredient** — fill in Item Code (optional), name, category, packaging label, quantity, unit, and price. Saving creates the ingredient in your Ingredients tab automatically *and* logs the expense. You never have to enter it twice.
+
+## Database change
+Already applied directly — nothing for you to run.
+
+## To install
+Re-upload `index.html`, `app.js`, `style.css` to GitHub.
+
+## Example — buying a case of 30 eggs
+1. Expenses → "+ Log expense" → Category: **Ingredients**
+2. Mode: **New Ingredient** (or **Existing Ingredient** if you already have "Eggs" set up — just update the price if it changed)
+3. Ingredient name: `Eggs`
+4. Packaging: `Case/30EA`
+5. Quantity in this package: `30`, Unit: `piece / each`
+6. Amount: whatever you paid for the whole case
+7. Save — the Eggs ingredient now exists (or is updated) with the correct per-egg cost, and the purchase is logged in Expenses.
