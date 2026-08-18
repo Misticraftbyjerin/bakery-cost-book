@@ -263,3 +263,23 @@ Re-upload `index.html`, `app.js`, `style.css` to GitHub.
 This fix doesn't retroactively add stock for ingredients that already existed before Phase 8 (Inventory) — those still start at 0, as explained before. Two ways forward:
 1. Log a fresh restock for each one now (even if it's "catching up" — e.g. "I have 2 tubs on hand right now")
 2. Or just correct the number directly: Inventory tab → click ✎ next to the ingredient → type in what you actually have
+
+---
+
+# Phase 11 — Profit Goal option
+
+## What's new
+The Goal tracker (Dashboard) now lets you choose between:
+- **Revenue Goal** — tracks total sales revenue against your target (as before)
+- **Profit Goal** — tracks revenue minus ingredient cost against your target (new)
+
+Pick whichever matches what you actually want to hit — e.g. "10,000 tk profit in 30 days, selling 4 days/week" now works directly, no manual conversion needed.
+
+## Database changes
+Already applied directly — nothing for you to run.
+
+## To install
+Re-upload `index.html`, `app.js`, `style.css` to GitHub.
+
+## Try it
+Dashboard → "Set / change goal" → click **Profit Goal** → 10000 / 30 days / 4 selling days/week → Save. The daily target and progress bars will now track profit instead of revenue.

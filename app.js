@@ -1319,7 +1319,7 @@ function renderDashboard() {
 }
 
 // ============================================================
-// REVENUE GOAL
+// SALES GOAL — revenue or profit, over N days, M selling days/week
 // ============================================================
 let currentGoal = null;
 
@@ -1333,10 +1333,15 @@ async function loadGoal() {
 function renderGoal() {
   const box = $("goal-display");
   if (!currentGoal) {
+    $("goal-section-title").textContent = "Sales Goal";
     box.innerHTML = `<p class="goal-empty">No goal set yet — click "Set / change goal" to pick a target.</p>`;
     return;
   }
   const g = currentGoal;
+  const isProfit = g.goal_type === "profit";
+  $("goal-section-title").textContent = isProfit ? "Profit Goal" : "Revenue Goal";
+  const metricLabel = isProfit ? "Profit" : "Revenue";
+
   const totalSellingDays = Math.max(1, Math.round((g.duration_days / 7) * g.selling_days_per_week));
   const dailyTarget = g.target_amount / totalSellingDays;
 
@@ -1346,25 +1351,28 @@ function renderGoal() {
   const endStr = end.toISOString().slice(0, 10);
   const today = todayStr();
 
-  const revenueSoFar = sales.filter((s) => s.sale_date >= g.start_date && s.sale_date <= endStr).reduce((sum, s) => sum + s.total_revenue, 0);
-  const revenuePct = Math.min(100, (revenueSoFar / g.target_amount) * 100);
+  const periodSales = sales.filter((s) => s.sale_date >= g.start_date && s.sale_date <= endStr);
+  const achievedSoFar = isProfit
+    ? periodSales.reduce((sum, s) => sum + (s.total_revenue - s.total_cost), 0)
+    : periodSales.reduce((sum, s) => sum + s.total_revenue, 0);
+  const achievedPct = Math.min(100, (achievedSoFar / g.target_amount) * 100);
 
   const daysElapsed = Math.max(0, Math.min(g.duration_days, Math.floor((new Date(today) - start) / 86400000) + 1));
   const timePct = Math.min(100, (daysElapsed / g.duration_days) * 100);
   const daysLeft = Math.max(0, g.duration_days - daysElapsed);
 
-  const isAhead = revenuePct >= timePct;
+  const isAhead = achievedPct >= timePct;
 
   box.innerHTML = `
     <div class="goal-stats">
-      <div class="goal-stat"><div class="label">Target</div><div class="value">${fmt(g.target_amount)} tk</div></div>
+      <div class="goal-stat"><div class="label">Target (${metricLabel.toLowerCase()})</div><div class="value">${fmt(g.target_amount)} tk</div></div>
       <div class="goal-stat"><div class="label">Daily target</div><div class="value">${fmt(dailyTarget)} tk</div></div>
       <div class="goal-stat"><div class="label">Selling days used</div><div class="value">~${totalSellingDays}</div></div>
       <div class="goal-stat"><div class="label">Days left</div><div class="value">${daysLeft}</div></div>
     </div>
     <div class="goal-progress-row">
-      <div class="goal-progress-label"><span>Revenue: ${fmt(revenueSoFar)} / ${fmt(g.target_amount)} tk</span><span>${fmt(revenuePct)}%</span></div>
-      <div class="goal-bar-track"><div class="goal-bar-fill ${isAhead ? "ahead" : ""}" style="width:${revenuePct.toFixed(0)}%"></div></div>
+      <div class="goal-progress-label"><span>${metricLabel}: ${fmt(achievedSoFar)} / ${fmt(g.target_amount)} tk</span><span>${fmt(achievedPct)}%</span></div>
+      <div class="goal-bar-track"><div class="goal-bar-fill ${isAhead ? "ahead" : ""}" style="width:${achievedPct.toFixed(0)}%"></div></div>
     </div>
     <div class="goal-progress-row">
       <div class="goal-progress-label"><span>Time elapsed: day ${daysElapsed} of ${g.duration_days}</span><span>${fmt(timePct)}%</span></div>
@@ -1374,6 +1382,15 @@ function renderGoal() {
   `;
 }
 
+function setGoalType(type) {
+  $("goal-type-toggle")
+    .querySelectorAll("button")
+    .forEach((b) => b.classList.toggle("active", b.dataset.type === type));
+}
+$("goal-type-toggle")
+  .querySelectorAll("button")
+  .forEach((btn) => btn.addEventListener("click", () => setGoalType(btn.dataset.type)));
+
 $("edit-goal-btn").addEventListener("click", () => {
   $("goal-form").reset();
   if (currentGoal) {
@@ -1381,8 +1398,10 @@ $("edit-goal-btn").addEventListener("click", () => {
     $("goal-duration").value = currentGoal.duration_days;
     $("goal-selling-days").value = currentGoal.selling_days_per_week;
     $("goal-start-date").value = currentGoal.start_date;
+    setGoalType(currentGoal.goal_type || "revenue");
   } else {
     $("goal-start-date").value = todayStr();
+    setGoalType("revenue");
   }
   updateGoalPreview();
   $("goal-modal").classList.add("visible");
@@ -1392,10 +1411,11 @@ function updateGoalPreview() {
   const amount = parseFloat($("goal-amount").value);
   const duration = parseFloat($("goal-duration").value);
   const sellingDays = parseFloat($("goal-selling-days").value);
+  const type = $("goal-type-toggle").querySelector("button.active").dataset.type;
   if (amount > 0 && duration > 0 && sellingDays > 0) {
     const totalSellingDays = Math.max(1, Math.round((duration / 7) * sellingDays));
     const daily = amount / totalSellingDays;
-    $("goal-preview").innerHTML = `That's about <b>${totalSellingDays} selling days</b> in this period — <b>${fmt(daily)} tk/day</b> to hit your target.`;
+    $("goal-preview").innerHTML = `That's about <b>${totalSellingDays} selling days</b> in this period — <b>${fmt(daily)} tk/day</b> ${type === "profit" ? "profit" : "revenue"} to hit your target.`;
   } else {
     $("goal-preview").textContent = "";
   }
@@ -1405,6 +1425,7 @@ function updateGoalPreview() {
 $("goal-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const payload = {
+    goal_type: $("goal-type-toggle").querySelector("button.active").dataset.type,
     target_amount: parseFloat($("goal-amount").value),
     duration_days: parseInt($("goal-duration").value),
     selling_days_per_week: parseInt($("goal-selling-days").value),

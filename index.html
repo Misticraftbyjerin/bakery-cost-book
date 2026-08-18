@@ -279,7 +279,7 @@
       <div class="dash-section" id="goal-section">
         <div class="view-head" style="margin-bottom:14px;">
           <div>
-            <h3 style="margin:0;">Revenue Goal</h3>
+            <h3 style="margin:0;" id="goal-section-title">Sales Goal</h3>
             <p class="sub">Set a target and see the daily number you need to hit.</p>
           </div>
           <button class="btn btn-outline btn-sm" id="edit-goal-btn">Set / change goal</button>
@@ -317,10 +317,15 @@
 <div class="overlay" id="goal-modal">
   <div class="modal">
     <div class="modal-head">
-      <h2>Set a revenue goal</h2>
+      <h2 id="goal-modal-title">Set a goal</h2>
       <button data-close="goal-modal">✕</button>
     </div>
     <form id="goal-form">
+      <div class="mode-toggle" id="goal-type-toggle">
+        <button type="button" data-type="revenue" class="active">Revenue Goal</button>
+        <button type="button" data-type="profit">Profit Goal</button>
+      </div>
+
       <label>Target amount (tk)</label>
       <input type="number" id="goal-amount" min="0" step="any" placeholder="e.g. 15000" required />
 
