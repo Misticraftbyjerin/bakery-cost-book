@@ -235,3 +235,31 @@ Re-upload `index.html`, `app.js`, `style.css` to GitHub.
 1. Tag your recipes with Product Type (Jar Cake, Slice Cake, Whole Cake (Facebook))
 2. Dashboard → check the new cards at the top
 3. Dashboard → "Set / change goal" → try 15000 tk, 30 days, 4 selling days/week, start today — it should show ≈ 875 tk/day
+
+---
+
+# Phase 10 — Fix: buying multiple packages now adds up correctly
+
+## What was wrong
+Logging an ingredient purchase only recorded the size of *one* package — so buying 2 tubs of cream still only added 1000g to stock, not 2000g.
+
+## What's fixed
+The Expense form's Ingredients mode now has 3 separate things instead of 2:
+- **Size of one package** (e.g. 1000g) — unchanged
+- **Price per package** (e.g. 230 tk) — this feeds your recipe costing, same as before
+- **How many packages did you buy?** (new — e.g. 2) — this is what actually multiplies into your stock
+
+So buying 2 tubs of cream at 230tk each: size=1000g, price=230tk, count=2 → adds **2000g** to stock, and the Amount field auto-fills to **460tk** total (still editable if you got a bulk discount).
+
+The Inventory tab now also shows an approximate package count under the gram amount, e.g. `2000.00 g` with `≈2.0 pkg` underneath — so you can see it in whichever way makes more sense to you.
+
+## Database changes
+None needed for this fix — just the app files.
+
+## To install
+Re-upload `index.html`, `app.js`, `style.css` to GitHub.
+
+## Note on your existing 0-stock ingredients
+This fix doesn't retroactively add stock for ingredients that already existed before Phase 8 (Inventory) — those still start at 0, as explained before. Two ways forward:
+1. Log a fresh restock for each one now (even if it's "catching up" — e.g. "I have 2 tubs on hand right now")
+2. Or just correct the number directly: Inventory tab → click ✎ next to the ingredient → type in what you actually have

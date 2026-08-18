@@ -440,10 +440,10 @@
         <label>Packaging <span class="opt">(optional — e.g. "Case/30EA", "Pack/4EA", "1 DZ")</span></label>
         <input type="text" id="exp-ing-packaging-label" placeholder="e.g. Case/30EA" />
 
-        <div class="row2">
+        <div class="row3">
           <div>
-            <label>Quantity in this package</label>
-            <input type="number" id="exp-ing-qty" min="0" step="any" placeholder="e.g. 30" />
+            <label>Size of one package</label>
+            <input type="number" id="exp-ing-qty" min="0" step="any" placeholder="e.g. 1000" />
           </div>
           <div>
             <label>Unit</label>
@@ -453,7 +453,15 @@
               <option value="piece">piece / each</option>
             </select>
           </div>
+          <div>
+            <label>Price per package (tk)</label>
+            <input type="number" id="exp-ing-price-per-package" min="0" step="any" placeholder="e.g. 230" />
+          </div>
         </div>
+
+        <label>How many packages did you buy? <span class="opt">(e.g. 2 tubs of cream = 2)</span></label>
+        <input type="number" id="exp-ing-packages-count" min="1" step="any" value="1" />
+
         <div class="unit-price-preview" id="exp-ing-unit-price-preview"></div>
       </div>
 
