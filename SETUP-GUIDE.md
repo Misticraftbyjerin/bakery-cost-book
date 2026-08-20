@@ -329,3 +329,34 @@ Re-upload `index.html`, `app.js` to GitHub. (`style.css` didn't need changes thi
 
 ## Try it
 Open your existing "Cups & Lids" expense (Edit ✎) — you should see Price prefilled at 140, Line Item Quantity at 1. Change it to 2, and Amount should update to 280 automatically.
+
+---
+
+# Phase 14 — Sidebar layout, Production tracking, Online Orders, and Dashboard tie-in
+
+## What's new
+
+**Sidebar navigation.** With 8 tabs now, everything moved from a horizontal bar at the top to a vertical sidebar on the left (matches your ask, and scales better as more tabs get added later). On phones, it collapses into a horizontal scroll strip at the top so it still works on a small screen.
+
+**Production tab.** Log how many of each cake you baked, on which date. "Sold" pulls automatically from your Sales log, and "Left" (baked − sold) calculates itself — no manual math. If you ever sell more than you logged as baked (e.g. old sales from before this tab existed), it shows a ⚠️ so you know the number isn't trustworthy yet for that day.
+
+**Online Orders tab.** Tracks your Facebook order pipeline separately from your offline Sales log: customer name, phone, cake/order details (free text, since custom whole cakes vary), quantity, price, order date, delivery date/time, delivery address, status (Pending → Confirmed → Baking → Out for Delivery → Delivered / Cancelled), and notes.
+
+**Dashboard tie-in:**
+- A **Pending Orders** section appears automatically whenever you have any order that isn't Delivered or Cancelled yet — sorted by soonest delivery date, so it's your daily to-do list at a glance.
+- The **Sales by product type** cards now also show **Baked** and **Left** (when you've logged bakes for that period) — so "how many jar cakes sold, how many left" is answered right there.
+
+## A note on how Orders and Sales relate
+By design, these stay separate — Online Orders is a fulfillment/status tracker, and Sales is your financial record. Marking an order "Delivered" does **not** automatically create a Sales entry, since custom whole cakes don't always map cleanly to one of your costed recipes. If a delivered Facebook order should count toward your revenue and profit numbers, log it in Sales as usual (you can note "from Facebook" in the notes field there).
+
+## Database changes
+Already applied directly — nothing for you to run.
+
+## To install
+Re-upload `index.html`, `app.js`, `style.css` to GitHub — all three changed.
+
+## Try it
+1. Check the sidebar looks right on both desktop and your phone
+2. Production tab → log a bake for one of your recipes
+3. Online Orders tab → log a Facebook order with a delivery date a few days out
+4. Dashboard → you should see the Pending Orders section and the Baked/Left line on the matching product-type card

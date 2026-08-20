@@ -37,27 +37,31 @@
      MAIN APP
      ============================================================ -->
 <div id="app">
-  <header class="topbar">
-    <div class="brand">
-      <span class="display">Bakery Cost Book</span>
-      <span class="tag">admin</span>
-    </div>
-    <div class="header-actions">
-      <button class="btn btn-outline btn-sm" id="export-backup-btn">⬇ Export Backup</button>
-      <button class="signout" id="signout-btn">Sign out</button>
-    </div>
-  </header>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="display">Bakery Cost Book</span>
+        <span class="tag">admin</span>
+      </div>
 
-  <nav class="tabs">
-    <button class="tab-btn active" data-view="ingredients">Ingredients</button>
-    <button class="tab-btn" data-view="recipes">Cakes &amp; Costing</button>
-    <button class="tab-btn" data-view="sales">Sales</button>
-    <button class="tab-btn" data-view="expenses">Expenses</button>
-    <button class="tab-btn" data-view="inventory">Inventory</button>
-    <button class="tab-btn" data-view="dashboard">Dashboard</button>
-  </nav>
+      <nav class="tabs">
+        <button class="tab-btn active" data-view="ingredients">Ingredients</button>
+        <button class="tab-btn" data-view="recipes">Cakes &amp; Costing</button>
+        <button class="tab-btn" data-view="sales">Sales</button>
+        <button class="tab-btn" data-view="production">Production</button>
+        <button class="tab-btn" data-view="orders">Online Orders</button>
+        <button class="tab-btn" data-view="expenses">Expenses</button>
+        <button class="tab-btn" data-view="inventory">Inventory</button>
+        <button class="tab-btn" data-view="dashboard">Dashboard</button>
+      </nav>
 
-  <main>
+      <div class="sidebar-actions">
+        <button class="btn btn-outline btn-sm" id="export-backup-btn">⬇ Export Backup</button>
+        <button class="signout" id="signout-btn">Sign out</button>
+      </div>
+    </aside>
+
+    <main>
     <!-- ============ INGREDIENTS VIEW ============ -->
     <section class="view active" id="view-ingredients">
       <div class="view-head">
@@ -271,6 +275,21 @@
 
       <div class="summary-cards" id="dash-summary"></div>
 
+      <div class="dash-section" id="dash-pending-orders-section" style="display:none;">
+        <div class="view-head" style="margin-bottom:14px;">
+          <div>
+            <h3 style="margin:0;">📦 Pending Orders</h3>
+            <p class="sub">Facebook orders not yet delivered — sorted by delivery date.</p>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="sales-table">
+            <thead><tr><th>Delivery</th><th>Customer</th><th>Cake</th><th>Qty</th><th>Status</th></tr></thead>
+            <tbody id="dash-pending-orders"></tbody>
+          </table>
+        </div>
+      </div>
+
       <div class="dash-section">
         <h3>Sales by product type</h3>
         <div id="dash-product-types" class="product-type-cards"></div>
@@ -308,7 +327,168 @@
         </div>
       </div>
     </section>
-  </main>
+
+    <!-- ============ PRODUCTION VIEW ============ -->
+    <section class="view" id="view-production">
+      <div class="view-head">
+        <div>
+          <h2>Production</h2>
+          <p class="sub">Log how many of each cake you baked — "Sold" comes automatically from your Sales log, so "Left" stays accurate on its own.</p>
+        </div>
+        <button class="btn btn-rose" id="add-production-btn">+ Log a bake</button>
+      </div>
+      <input type="text" id="production-search" class="search-bar" placeholder="Search by cake or notes…" />
+      <div class="table-wrap">
+        <table class="sales-table" id="production-table">
+          <thead><tr><th>Date</th><th>Cake</th><th>Baked</th><th>Sold</th><th>Left</th><th>Notes</th><th></th></tr></thead>
+          <tbody id="production-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ============ ONLINE ORDERS VIEW ============ -->
+    <section class="view" id="view-orders">
+      <div class="view-head">
+        <div>
+          <h2>Online Orders</h2>
+          <p class="sub">Facebook orders — customer, cake, delivery date/time, and status. Separate from your offline Sales log.</p>
+        </div>
+        <button class="btn btn-rose" id="add-order-btn">+ New order</button>
+      </div>
+      <div class="filter-bar">
+        <input type="text" id="orders-search" class="search-bar" placeholder="Search by customer or cake…" />
+        <select id="orders-status-filter" class="category-filter">
+          <option value="">All statuses</option>
+          <option>Pending</option>
+          <option>Confirmed</option>
+          <option>Baking</option>
+          <option>Out for Delivery</option>
+          <option>Delivered</option>
+          <option>Cancelled</option>
+        </select>
+      </div>
+      <div class="table-wrap">
+        <table class="sales-table" id="orders-table">
+          <thead><tr><th>Delivery</th><th>Customer</th><th>Cake</th><th>Qty</th><th>Price</th><th>Status</th><th></th></tr></thead>
+          <tbody id="orders-tbody"></tbody>
+        </table>
+      </div>
+    </section>
+    </main>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: Log a Bake (Production)
+     ============================================================ -->
+<div class="overlay" id="production-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="production-modal-title">Log a bake</h2>
+      <button data-close="production-modal">✕</button>
+    </div>
+    <form id="production-form">
+      <input type="hidden" id="prod-id" />
+      <label>Cake</label>
+      <select id="prod-recipe" required></select>
+      <div class="row2">
+        <div>
+          <label>Quantity baked</label>
+          <input type="number" id="prod-qty" min="0" step="any" required />
+        </div>
+        <div>
+          <label>Date</label>
+          <input type="date" id="prod-date" required />
+        </div>
+      </div>
+      <label>Notes <span class="opt">(optional)</span></label>
+      <textarea id="prod-notes" rows="2"></textarea>
+      <div class="unit-price-preview" id="prod-preview"></div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" data-close="production-modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ============================================================
+     MODAL: Add / Edit Online Order
+     ============================================================ -->
+<div class="overlay" id="order-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="order-modal-title">New online order</h2>
+      <button data-close="order-modal">✕</button>
+    </div>
+    <form id="order-form">
+      <input type="hidden" id="order-id" />
+      <div class="row2">
+        <div>
+          <label>Customer name</label>
+          <input type="text" id="order-customer" required />
+        </div>
+        <div>
+          <label>Phone <span class="opt">(optional)</span></label>
+          <input type="text" id="order-phone" />
+        </div>
+      </div>
+
+      <label>Cake / order details</label>
+      <input type="text" id="order-cake" placeholder="e.g. 2lb chocolate whole cake, 'Happy Birthday Nila'" required />
+
+      <div class="row2">
+        <div>
+          <label>Quantity</label>
+          <input type="number" id="order-qty" min="1" step="any" value="1" required />
+        </div>
+        <div>
+          <label>Price (tk) <span class="opt">(optional)</span></label>
+          <input type="number" id="order-price" min="0" step="any" />
+        </div>
+      </div>
+
+      <div class="row2">
+        <div>
+          <label>Order date</label>
+          <input type="date" id="order-date" required />
+        </div>
+        <div>
+          <label>Status</label>
+          <select id="order-status">
+            <option>Pending</option>
+            <option>Confirmed</option>
+            <option>Baking</option>
+            <option>Out for Delivery</option>
+            <option>Delivered</option>
+            <option>Cancelled</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="row2">
+        <div>
+          <label>Delivery date <span class="opt">(optional)</span></label>
+          <input type="date" id="order-delivery-date" />
+        </div>
+        <div>
+          <label>Delivery time <span class="opt">(optional)</span></label>
+          <input type="text" id="order-delivery-time" placeholder="e.g. 5:00 PM" />
+        </div>
+      </div>
+
+      <label>Delivery address <span class="opt">(optional)</span></label>
+      <input type="text" id="order-address" />
+
+      <label>Notes <span class="opt">(optional)</span></label>
+      <textarea id="order-notes" rows="2"></textarea>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-outline" data-close="order-modal">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save order</button>
+      </div>
+    </form>
+  </div>
 </div>
 
 <!-- ============================================================

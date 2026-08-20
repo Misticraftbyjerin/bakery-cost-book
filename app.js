@@ -79,6 +79,8 @@ async function onLoggedIn(user) {
   await loadExpenses();
   await loadCashLogs();
   await loadGoal();
+  await loadProduction();
+  await loadOrders();
   renderInventory();
   renderDashboard();
 }
@@ -700,6 +702,7 @@ async function loadSales() {
   renderTargetProgress();
   renderInventory();
   renderGoal();
+  if (typeof renderProduction === "function") renderProduction();
 }
 
 function renderSales() {
@@ -1246,15 +1249,22 @@ function renderDashboard() {
     <div class="summary-card"><div class="label">Cakes sold</div><div class="value">${periodSales.reduce((s, x) => s + Number(x.quantity), 0)}</div></div>
   `;
 
-  // ---- sales by product type (Jar Cake / Slice Cake / Whole Cake (Facebook) / etc) ----
+  // ---- sales (and baked/left) by product type (Jar Cake / Slice Cake / Whole Cake (Facebook) / etc) ----
   const TYPE_ORDER = ["Jar Cake", "Slice Cake", "Whole Cake (Facebook)", "Other"];
   const byType = {};
   periodSales.forEach((s) => {
     const recipe = recipes.find((r) => r.id === s.recipe_id);
     const type = (recipe && recipe.product_type) || "Untagged";
-    if (!byType[type]) byType[type] = { qty: 0, revenue: 0 };
+    if (!byType[type]) byType[type] = { qty: 0, revenue: 0, baked: 0 };
     byType[type].qty += Number(s.quantity);
     byType[type].revenue += s.total_revenue;
+  });
+  const periodProduction = filterByPeriod(productionLog, "log_date", dashboardPeriod);
+  periodProduction.forEach((p) => {
+    const recipe = recipes.find((r) => r.id === p.recipe_id);
+    const type = (recipe && recipe.product_type) || "Untagged";
+    if (!byType[type]) byType[type] = { qty: 0, revenue: 0, baked: 0 };
+    byType[type].baked += Number(p.quantity_baked);
   });
   const typeKeys = Object.keys(byType).sort((a, b) => {
     const ai = TYPE_ORDER.indexOf(a), bi = TYPE_ORDER.indexOf(b);
@@ -1262,19 +1272,26 @@ function renderDashboard() {
   });
   $("dash-product-types").innerHTML = typeKeys.length
     ? typeKeys
-        .map(
-          (type) => `
+        .map((type) => {
+          const t = byType[type];
+          const left = t.baked - t.qty;
+          const leftLine = t.baked > 0 ? `<div class="ptc-sub">Baked ${fmt(t.baked)} · Left <span class="${left < 0 ? "profit-neg" : ""}">${fmt(left)}</span></div>` : "";
+          return `
       <div class="product-type-card">
         <div class="ptc-label">${type}</div>
-        <div class="ptc-value">${byType[type].qty}</div>
-        <div class="ptc-sub">${fmt(byType[type].revenue)} tk</div>
-      </div>`
-        )
+        <div class="ptc-value">${t.qty}</div>
+        <div class="ptc-sub">${fmt(t.revenue)} tk</div>
+        ${leftLine}
+      </div>`;
+        })
         .join("")
     : `<div class="empty-state" style="grid-column:1/-1">No sales in this period</div>`;
   if (typeKeys.includes("Untagged")) {
     $("dash-product-types").innerHTML += `<p class="hint" style="grid-column:1/-1; margin-top:4px;">"Untagged" = cakes sold whose recipe doesn't have a Product Type set yet — open the recipe in Cakes & Costing to tag it.</p>`;
   }
+
+  // ---- pending online orders (not date-filtered — this is a live to-do list) ----
+  renderPendingOrdersWidget();
 
   // ---- top cakes by sales/profit ----
   const byRecipe = {};
@@ -1886,3 +1903,281 @@ function renderPurchasesSummary() {
     )
     .join("");
 }
+
+// ============================================================
+// PRODUCTION LOG
+// ============================================================
+let productionLog = [];
+let productionSearchTerm = "";
+
+$("production-search").addEventListener("input", (e) => {
+  productionSearchTerm = e.target.value.trim().toLowerCase();
+  renderProduction();
+});
+
+async function loadProduction() {
+  const { data, error } = await sb.from("production_log").select("*").order("log_date", { ascending: false }).order("created_at", { ascending: false });
+  if (error) return toast(error.message, true);
+  productionLog = data;
+  renderProduction();
+}
+
+// how many of a given recipe were sold on a given date (from the Sales log — single source of truth)
+function soldOnDate(recipeId, dateStr) {
+  return sales.filter((s) => s.recipe_id === recipeId && s.sale_date === dateStr).reduce((sum, s) => sum + Number(s.quantity), 0);
+}
+
+function renderProduction() {
+  const term = productionSearchTerm;
+  const filtered = term
+    ? productionLog.filter((p) => p.recipe_name_snapshot.toLowerCase().includes(term) || (p.notes || "").toLowerCase().includes(term))
+    : productionLog;
+
+  const tbody = $("production-tbody");
+  if (!productionLog.length) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state">No bakes logged yet</div></td></tr>`;
+    return;
+  }
+  if (!filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state">No matches</div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = filtered
+    .map((p) => {
+      const sold = soldOnDate(p.recipe_id, p.log_date);
+      const left = Number(p.quantity_baked) - sold;
+      return `
+      <tr>
+        <td>${p.log_date}</td>
+        <td>${p.recipe_name_snapshot}</td>
+        <td class="num">${fmt(p.quantity_baked)}</td>
+        <td class="num">${sold}</td>
+        <td class="num ${left < 0 ? "profit-neg" : ""}">${fmt(left)}${left < 0 ? " ⚠️" : ""}</td>
+        <td class="hint">${p.notes || ""}</td>
+        <td class="row-actions">
+          <button onclick="editProduction('${p.id}')" title="Edit">✎</button>
+          <button onclick="deleteProduction('${p.id}')" title="Delete">✕</button>
+        </td>
+      </tr>`;
+    })
+    .join("");
+}
+
+$("add-production-btn").addEventListener("click", () => openProductionModal());
+window.editProduction = (id) => openProductionModal(productionLog.find((p) => p.id === id));
+
+window.deleteProduction = async (id) => {
+  if (!confirm("Delete this bake record?")) return;
+  const { error } = await sb.from("production_log").delete().eq("id", id);
+  if (error) return toast(error.message, true);
+  toast("Deleted");
+  loadProduction();
+};
+
+function populateProdRecipeSelect(selectedId = null) {
+  const sel = $("prod-recipe");
+  sel.innerHTML = recipes.map((r) => `<option value="${r.id}" ${r.id === selectedId ? "selected" : ""}>${r.name}${r.size_label ? " (" + r.size_label + ")" : ""}</option>`).join("");
+}
+
+function openProductionModal(p = null) {
+  $("production-form").reset();
+  populateProdRecipeSelect(p ? p.recipe_id : null);
+  $("prod-id").value = p ? p.id : "";
+  $("production-modal-title").textContent = p ? "Edit bake" : "Log a bake";
+  $("prod-date").value = p ? p.log_date : todayStr();
+  $("prod-qty").value = p ? p.quantity_baked : "";
+  $("prod-notes").value = p ? p.notes || "" : "";
+  updateProductionPreview();
+  $("production-modal").classList.add("visible");
+}
+
+function updateProductionPreview() {
+  const recipeId = $("prod-recipe").value;
+  const recipe = recipes.find((r) => r.id === recipeId);
+  const date = $("prod-date").value;
+  if (!recipe || !date) {
+    $("prod-preview").textContent = "";
+    return;
+  }
+  const sold = soldOnDate(recipe.id, date);
+  const baked = parseFloat($("prod-qty").value) || 0;
+  $("prod-preview").innerHTML = `Already sold on this date: <b>${sold}</b> · Left after this bake: <b>${fmt(baked - sold)}</b>`;
+}
+["prod-recipe", "prod-date", "prod-qty"].forEach((id) => $(id).addEventListener("input", updateProductionPreview));
+$("prod-recipe").addEventListener("change", updateProductionPreview);
+
+$("production-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const id = $("prod-id").value;
+  const recipeId = $("prod-recipe").value;
+  const recipe = recipes.find((r) => r.id === recipeId);
+  if (!recipe) return toast("Pick a cake", true);
+
+  const payload = {
+    recipe_id: recipe.id,
+    recipe_name_snapshot: recipe.name,
+    quantity_baked: parseFloat($("prod-qty").value),
+    log_date: $("prod-date").value,
+    notes: $("prod-notes").value.trim() || null,
+  };
+  const { error } = id ? await sb.from("production_log").update(payload).eq("id", id) : await sb.from("production_log").insert(payload);
+  if (error) return toast(error.message, true);
+
+  toast("Bake logged");
+  $("production-modal").classList.remove("visible");
+  loadProduction();
+});
+
+// ============================================================
+// ONLINE ORDERS (Facebook)
+// ============================================================
+let onlineOrders = [];
+const ordersFilterState = { search: "", status: "" };
+
+$("orders-search").addEventListener("input", (e) => {
+  ordersFilterState.search = e.target.value.trim().toLowerCase();
+  renderOrders();
+});
+$("orders-status-filter").addEventListener("change", (e) => {
+  ordersFilterState.status = e.target.value;
+  renderOrders();
+});
+
+async function loadOrders() {
+  const { data, error } = await sb.from("online_orders").select("*").order("delivery_date", { ascending: true, nullsFirst: false }).order("created_at", { ascending: false });
+  if (error) return toast(error.message, true);
+  onlineOrders = data;
+  renderOrders();
+  renderPendingOrdersWidget();
+}
+
+const ORDER_STATUS_CLASS = {
+  Pending: "margin-low",
+  Confirmed: "margin-good",
+  Baking: "margin-low",
+  "Out for Delivery": "margin-good",
+  Delivered: "margin-good",
+  Cancelled: "margin-low",
+};
+
+function getFilteredOrders() {
+  const term = ordersFilterState.search;
+  return onlineOrders.filter((o) => {
+    if (ordersFilterState.status && o.status !== ordersFilterState.status) return false;
+    if (term && !(o.customer_name.toLowerCase().includes(term) || o.cake_details.toLowerCase().includes(term))) return false;
+    return true;
+  });
+}
+
+function renderOrders() {
+  const filtered = getFilteredOrders();
+  const tbody = $("orders-tbody");
+  if (!onlineOrders.length) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state">No online orders yet</div></td></tr>`;
+    return;
+  }
+  if (!filtered.length) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state">No matches</div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = filtered
+    .map(
+      (o) => `
+    <tr>
+      <td>${o.delivery_date || "—"}${o.delivery_time ? `<br><span class="hint">${o.delivery_time}</span>` : ""}</td>
+      <td>${o.customer_name}${o.phone ? `<br><span class="hint">${o.phone}</span>` : ""}</td>
+      <td>${o.cake_details}</td>
+      <td class="num">${o.quantity}</td>
+      <td class="num">${o.price ? fmt(o.price) + " tk" : "—"}</td>
+      <td><span class="margin-badge ${ORDER_STATUS_CLASS[o.status] || "margin-low"}">${o.status}</span></td>
+      <td class="row-actions">
+        <button onclick="editOrder('${o.id}')" title="Edit">✎</button>
+        <button onclick="deleteOrder('${o.id}')" title="Delete">✕</button>
+      </td>
+    </tr>`
+    )
+    .join("");
+}
+
+$("add-order-btn").addEventListener("click", () => openOrderModal());
+
+// Dashboard widget: orders not yet delivered/cancelled, soonest delivery first
+function renderPendingOrdersWidget() {
+  const section = $("dash-pending-orders-section");
+  const tbody = $("dash-pending-orders");
+  if (!section || !tbody) return; // dashboard not in DOM yet on first load — safe to skip
+
+  const pending = onlineOrders
+    .filter((o) => o.status !== "Delivered" && o.status !== "Cancelled")
+    .sort((a, b) => (a.delivery_date || "9999-99-99").localeCompare(b.delivery_date || "9999-99-99"));
+
+  if (!pending.length) {
+    section.style.display = "none";
+    return;
+  }
+  section.style.display = "";
+  tbody.innerHTML = pending
+    .map(
+      (o) => `
+    <tr>
+      <td>${o.delivery_date || "—"}${o.delivery_time ? `<br><span class="hint">${o.delivery_time}</span>` : ""}</td>
+      <td>${o.customer_name}</td>
+      <td>${o.cake_details}</td>
+      <td class="num">${o.quantity}</td>
+      <td><span class="margin-badge ${ORDER_STATUS_CLASS[o.status] || "margin-low"}">${o.status}</span></td>
+    </tr>`
+    )
+    .join("");
+}
+window.editOrder = (id) => openOrderModal(onlineOrders.find((o) => o.id === id));
+
+window.deleteOrder = async (id) => {
+  if (!confirm("Delete this order?")) return;
+  const { error } = await sb.from("online_orders").delete().eq("id", id);
+  if (error) return toast(error.message, true);
+  toast("Order deleted");
+  loadOrders();
+};
+
+function openOrderModal(o = null) {
+  $("order-form").reset();
+  $("order-id").value = o ? o.id : "";
+  $("order-modal-title").textContent = o ? "Edit order" : "New online order";
+  $("order-customer").value = o ? o.customer_name : "";
+  $("order-phone").value = o ? o.phone || "" : "";
+  $("order-cake").value = o ? o.cake_details : "";
+  $("order-qty").value = o ? o.quantity : 1;
+  $("order-price").value = o ? o.price || "" : "";
+  $("order-date").value = o ? o.order_date : todayStr();
+  $("order-status").value = o ? o.status : "Pending";
+  $("order-delivery-date").value = o ? o.delivery_date || "" : "";
+  $("order-delivery-time").value = o ? o.delivery_time || "" : "";
+  $("order-address").value = o ? o.address || "" : "";
+  $("order-notes").value = o ? o.notes || "" : "";
+  $("order-modal").classList.add("visible");
+}
+
+$("order-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const id = $("order-id").value;
+  const payload = {
+    customer_name: $("order-customer").value.trim(),
+    phone: $("order-phone").value.trim() || null,
+    cake_details: $("order-cake").value.trim(),
+    quantity: parseFloat($("order-qty").value) || 1,
+    price: parseFloat($("order-price").value) || null,
+    order_date: $("order-date").value,
+    status: $("order-status").value,
+    delivery_date: $("order-delivery-date").value || null,
+    delivery_time: $("order-delivery-time").value.trim() || null,
+    address: $("order-address").value.trim() || null,
+    notes: $("order-notes").value.trim() || null,
+    updated_at: new Date().toISOString(),
+  };
+  const { error } = id ? await sb.from("online_orders").update(payload).eq("id", id) : await sb.from("online_orders").insert(payload);
+  if (error) return toast(error.message, true);
+
+  toast("Order saved");
+  $("order-modal").classList.remove("visible");
+  loadOrders();
+});

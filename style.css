@@ -45,81 +45,82 @@ button { font-family: inherit; cursor: pointer; }
 input, select, textarea { font-family: inherit; }
 
 /* ============================================================
-   Layout shell
+   Layout shell — vertical sidebar
    ============================================================ */
 #app { display: none; min-height: 100vh; }
 #app.visible { display: block; }
 
-header.topbar {
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+  align-items: flex-start;
+}
+
+.sidebar {
+  flex: 0 0 232px;
   background: var(--ink);
   color: var(--paper);
-  padding: 18px 28px;
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
+  min-height: 100vh;
   position: sticky;
   top: 0;
-  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  padding: 24px 0;
 }
-header.topbar .brand { display: flex; align-items: baseline; gap: 10px; }
-header.topbar .brand .display { font-size: 22px; color: #fff; }
-header.topbar .brand .tag { font-size: 12px; color: var(--butter); letter-spacing: 0.06em; text-transform: uppercase; }
-header.topbar .signout { background: none; border: 1px solid rgba(255,255,255,0.25); color: var(--paper); padding: 6px 14px; border-radius: 20px; font-size: 13px; }
-header.topbar .signout:hover { border-color: var(--rose); color: var(--rose); }
-header.topbar .header-actions { display: flex; align-items: center; gap: 10px; }
-header.topbar .header-actions .btn-outline { border-color: rgba(255,255,255,0.3); color: var(--paper); background: none; }
-header.topbar .header-actions .btn-outline:hover { border-color: var(--butter); color: var(--butter); }
+.sidebar .brand { display: flex; flex-direction: column; gap: 3px; padding: 0 22px 22px; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 14px; }
+.sidebar .brand .display { font-size: 20px; color: #fff; }
+.sidebar .brand .tag { font-size: 11px; color: var(--butter); letter-spacing: 0.06em; text-transform: uppercase; }
 
-/* Recipe-card tab nav — the signature element */
+/* Vertical tab nav — recipe-card styling adapted to a sidebar */
 nav.tabs {
   display: flex;
-  gap: 14px;
-  padding: 22px 28px 0;
-  max-width: 1100px;
-  margin: 0 auto;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0 14px;
+  flex: 1;
 }
 nav.tabs button {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-bottom: none;
-  padding: 12px 22px 16px;
-  border-radius: 10px 10px 0 0;
+  background: none;
+  border: none;
+  border-left: 3px solid transparent;
+  padding: 11px 14px;
+  border-radius: 8px;
   font-size: 14px;
   font-weight: 600;
-  color: var(--ink-soft);
+  color: rgba(251,248,243,0.65);
+  text-align: left;
   position: relative;
-  top: 1px;
 }
-nav.tabs button::before {
-  /* stitched-edge detail */
-  content: "";
-  position: absolute;
-  top: 6px; left: 10px; right: 10px;
-  border-top: 1px dashed var(--line);
-}
+nav.tabs button:hover { background: rgba(255,255,255,0.05); color: var(--paper); }
 nav.tabs button.active {
-  color: var(--ink);
-  border-color: var(--line);
-  box-shadow: var(--shadow);
-}
-nav.tabs button.active::after {
-  content: "";
-  position: absolute;
-  bottom: -1px; left: 0; right: 0; height: 3px;
-  background: var(--rose);
-  border-radius: 3px 3px 0 0;
+  color: #fff;
+  background: rgba(193,102,107,0.18);
+  border-left-color: var(--rose);
 }
 
+.sidebar-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px 14px 0;
+  margin-top: 14px;
+  border-top: 1px solid rgba(255,255,255,0.1);
+}
+.sidebar-actions .btn-outline { border-color: rgba(255,255,255,0.3); color: var(--paper); background: none; width: 100%; justify-content: center; }
+.sidebar-actions .btn-outline:hover { border-color: var(--butter); color: var(--butter); }
+.sidebar-actions .signout { background: none; border: 1px solid rgba(255,255,255,0.25); color: var(--paper); padding: 8px 14px; border-radius: 20px; font-size: 13px; width: 100%; }
+.sidebar-actions .signout:hover { border-color: var(--rose); color: var(--rose); }
+
 main {
+  flex: 1;
   max-width: 1100px;
-  margin: 0 auto;
+  margin: 28px 28px 60px;
   background: var(--card);
   border: 1px solid var(--line);
-  border-radius: 0 10px 10px 10px;
+  border-radius: 10px;
   box-shadow: var(--shadow);
   padding: 32px;
-  margin-bottom: 60px;
-  min-height: 400px;
+  min-height: calc(100vh - 56px);
 }
 
 .view { display: none; }
@@ -582,10 +583,16 @@ table.sales-table .row-actions button:hover { color: var(--rose); }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 .toast.error { background: var(--danger); }
 
-@media (max-width: 640px) {
-  nav.tabs { padding: 16px 14px 0; overflow-x: auto; }
-  main { padding: 20px; border-radius: 10px; margin: 0 10px 40px; }
-  header.topbar { padding: 14px 16px; }
+@media (max-width: 780px) {
+  .app-shell { flex-direction: column; }
+  .sidebar { flex: 0 0 auto; min-height: auto; position: static; padding: 16px 0; flex-direction: row; align-items: center; flex-wrap: wrap; }
+  .sidebar .brand { border-bottom: none; margin-bottom: 0; padding: 0 16px; flex: 0 0 auto; }
+  nav.tabs { flex-direction: row; overflow-x: auto; padding: 10px 10px; flex: 1 1 100%; order: 3; }
+  nav.tabs button { border-left: none; border-bottom: 3px solid transparent; white-space: nowrap; }
+  nav.tabs button.active { border-left-color: transparent; border-bottom-color: var(--rose); }
+  .sidebar-actions { flex-direction: row; border-top: none; margin-top: 0; padding: 0 16px; margin-left: auto; }
+  .sidebar-actions .btn-outline, .sidebar-actions .signout { width: auto; }
+  main { padding: 20px; border-radius: 10px; margin: 16px 10px 40px; }
   .row2, .row3, .row4 { grid-template-columns: 1fr; }
   .rline { grid-template-columns: 1fr; }
 }
