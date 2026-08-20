@@ -422,49 +422,47 @@
         <div id="exp-ing-existing-fields">
           <label>Ingredient</label>
           <div class="ing-picker">
-            <input type="text" class="ing-search" id="exp-ing-search" placeholder="Search ingredient or code…" autocomplete="off" />
+            <input type="text" class="ing-search" id="exp-ing-search" placeholder="Type the item code or name to find it…" autocomplete="off" />
             <div class="ing-dropdown" id="exp-ing-dropdown"></div>
           </div>
         </div>
 
         <div id="exp-ing-new-fields" style="display:none;">
-          <div class="row2">
-            <div>
-              <label>Item Code <span class="opt">(optional)</span></label>
-              <input type="text" id="exp-new-code" placeholder="e.g. VAN-DREEM" />
-            </div>
-            <div>
-              <label>Ingredient name</label>
-              <input type="text" id="exp-new-name" placeholder="e.g. Dreem Vanilla Essence" />
-            </div>
-          </div>
-          <label>Ingredient category</label>
+          <label>Item Code <span class="opt">(optional)</span></label>
+          <input type="text" id="exp-new-code" placeholder="e.g. VAN-DREEM" />
+
+          <label>Item Name</label>
+          <input type="text" id="exp-new-name" placeholder="e.g. Dreem Vanilla Essence" />
+
+          <label>Product Category</label>
           <select id="exp-new-ing-category"></select>
         </div>
 
-        <label>Packaging <span class="opt">(optional — e.g. "Case/30EA", "Pack/4EA", "1 DZ")</span></label>
-        <input type="text" id="exp-ing-packaging-label" placeholder="e.g. Case/30EA" />
-
-        <div class="row3">
+        <label class="section-label">Packaging</label>
+        <div class="row4">
           <div>
-            <label>Size of one package</label>
-            <input type="number" id="exp-ing-qty" min="0" step="any" placeholder="e.g. 1000" />
+            <label class="sub-label">Packaging</label>
+            <input type="text" id="exp-ing-packaging-label" placeholder="e.g. Pack/100EA" />
           </div>
           <div>
-            <label>Unit</label>
+            <label class="sub-label">Quantity <span class="opt">(items per package)</span></label>
+            <input type="number" id="exp-ing-qty" min="0" step="any" placeholder="e.g. 100" />
+          </div>
+          <div>
+            <label class="sub-label">Unit</label>
             <select id="exp-ing-unit">
-              <option value="g">grams (g)</option>
-              <option value="ml">millilitres (ml)</option>
-              <option value="piece">piece / each</option>
+              <option value="g">Gram</option>
+              <option value="ml">ML</option>
+              <option value="piece">Each</option>
             </select>
           </div>
           <div>
-            <label>Price per package (tk)</label>
-            <input type="number" id="exp-ing-price-per-package" min="0" step="any" placeholder="e.g. 230" />
+            <label class="sub-label">Price <span class="opt">(per package)</span></label>
+            <input type="number" id="exp-ing-price-per-package" min="0" step="any" placeholder="e.g. 25" />
           </div>
         </div>
 
-        <label>How many packages did you buy? <span class="opt">(e.g. 2 tubs of cream = 2)</span></label>
+        <label>Line Item Quantity <span class="opt">(how many packages you're buying right now — not the packaging quantity above)</span></label>
         <input type="number" id="exp-ing-packages-count" min="1" step="any" value="1" />
 
         <div class="unit-price-preview" id="exp-ing-unit-price-preview"></div>

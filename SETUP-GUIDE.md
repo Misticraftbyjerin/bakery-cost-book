@@ -283,3 +283,26 @@ Re-upload `index.html`, `app.js`, `style.css` to GitHub.
 
 ## Try it
 Dashboard → "Set / change goal" → click **Profit Goal** → 10000 / 30 days / 4 selling days/week → Save. The daily target and progress bars will now track profit instead of revenue.
+
+---
+
+# Phase 12 — Expense form relabeled to match your reference layout
+
+## What changed
+This is a relabeling/layout fix — the underlying logic (packaging size vs. how many you bought) was already correct from Phase 10. What was confusing was the wording. Now it matches your reference screenshot's terms directly:
+
+- **Item Code**, **Item Name**, **Product Category** — top of the "New Ingredient" section, one field per line
+- **Packaging | Quantity | Unit | Price** — now one single row, exactly like your reference. "Quantity" = how many items are in one package (e.g. 100 spoons). "Price" = the cost of one package (e.g. 25tk for that pack of 100).
+- **Line Item Quantity** — its own clearly-separated field, exactly your term for it. This is how many *packages* you're buying right now (e.g. 10 packs), completely separate from the "Quantity" above (which is items-per-package, not packages-purchased).
+
+Example from your message: Packaging "Pack/100EA", Quantity 100, Unit Each, Price 25tk (one pack) — then Line Item Quantity 10 (buying 10 packs) → adds 1000 spoons to stock, and the Amount auto-fills to 250tk.
+
+**Existing Ingredient search** now also explicitly mentions you can type the code or the name to find it — same underlying search as before, just clearer about what you can type.
+
+**Auto-creating new ingredients** — unchanged, still works exactly as before: fill in "New Ingredient," save, and it appears in your Ingredients tab automatically.
+
+## Database changes
+None — this was purely a form relabel/reflow.
+
+## To install
+Re-upload `index.html`, `style.css` to GitHub. (`app.js` didn't need to change this time — all the field IDs stayed the same.)
