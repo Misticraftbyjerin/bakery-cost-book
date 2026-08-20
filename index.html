@@ -410,6 +410,21 @@
       <div id="exp-simple-section">
         <label>Item</label>
         <input type="text" id="exp-item" placeholder="e.g. Cake boards, New round mold" />
+
+        <label>Packaging <span class="opt">(optional — e.g. "Case/100EA")</span></label>
+        <input type="text" id="exp-simple-packaging-label" placeholder="e.g. Case/100EA" />
+
+        <div class="row2">
+          <div>
+            <label class="sub-label">Price <span class="opt">(per package)</span></label>
+            <input type="number" id="exp-simple-price-per-unit" min="0" step="any" placeholder="e.g. 140" />
+          </div>
+          <div>
+            <label class="sub-label">Line Item Quantity <span class="opt">(how many you're buying)</span></label>
+            <input type="number" id="exp-simple-qty-count" min="1" step="any" value="1" />
+          </div>
+        </div>
+        <div class="unit-price-preview" id="exp-simple-price-preview"></div>
       </div>
 
       <!-- INGREDIENT MODE: only shown when Category = Ingredients -->
@@ -477,11 +492,6 @@
           <label>Date</label>
           <input type="date" id="exp-date" required />
         </div>
-      </div>
-
-      <div id="exp-simple-qty-wrap">
-        <label>Quantity <span class="opt">(optional, free text — e.g. "2 dozen", "1 mold")</span></label>
-        <input type="text" id="exp-qty" />
       </div>
 
       <label>Notes <span class="opt">(optional)</span></label>

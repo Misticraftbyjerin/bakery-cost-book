@@ -931,7 +931,9 @@ function openExpenseModal(exp = null) {
   $("exp-amount").value = exp ? exp.amount : "";
   $("exp-notes").value = exp ? exp.notes || "" : "";
   $("exp-item").value = "";
-  $("exp-qty").value = "";
+  $("exp-simple-packaging-label").value = "";
+  $("exp-simple-price-per-unit").value = "";
+  $("exp-simple-qty-count").value = "1";
   $("exp-new-code").value = "";
   $("exp-new-name").value = "";
   $("exp-ing-search").value = "";
@@ -953,17 +955,22 @@ function openExpenseModal(exp = null) {
       $("exp-ing-qty").value = ing.package_qty;
       $("exp-ing-unit").value = ing.base_unit;
       $("exp-ing-price-per-package").value = ing.package_price;
-      // how many packages this specific past purchase covered isn't stored separately,
-      // so this defaults to 1 on edit — adjust it if you remember buying more than one
-      $("exp-ing-packages-count").value = "1";
+      // this specific past purchase's own line quantity IS remembered (via units_purchased),
+      // so back it out against the package size to show what was actually bought that time
+      const size = ing.package_qty || 1;
+      $("exp-ing-packages-count").value = exp.units_purchased ? Math.round((exp.units_purchased / size) * 100) / 100 : "1";
     }
   } else if (exp) {
     $("exp-item").value = exp.item_name;
-    $("exp-qty").value = exp.quantity || "";
+    $("exp-simple-packaging-label").value = exp.quantity || "";
+    // best-effort split of the old total amount back into price × quantity, editable either way
+    $("exp-simple-price-per-unit").value = exp.amount;
+    $("exp-simple-qty-count").value = "1";
   }
 
   updateExpenseFormMode();
   updateExpIngPreview();
+  updateExpSimplePreview();
   $("expense-modal").classList.add("visible");
 }
 
@@ -974,7 +981,6 @@ function populateExpNewIngCategory() {
 function updateExpenseFormMode() {
   const isIngredient = $("exp-category").value === "Ingredients";
   $("exp-simple-section").style.display = isIngredient ? "none" : "";
-  $("exp-simple-qty-wrap").style.display = isIngredient ? "none" : "";
   $("exp-ingredient-section").style.display = isIngredient ? "" : "none";
 }
 $("exp-category").addEventListener("change", updateExpenseFormMode);
@@ -1047,7 +1053,7 @@ expIngSearch.addEventListener("blur", () => {
   }, 150);
 });
 
-// Preview + auto-fill the total Amount as (price per package × how many bought) —
+// Preview + auto-fill the total Amount as (price per package × line item quantity) —
 // still editable afterward in case of a bulk discount.
 function updateExpIngPreview() {
   const size = parseFloat($("exp-ing-qty").value);
@@ -1066,12 +1072,35 @@ function updateExpIngPreview() {
 }
 ["exp-ing-qty", "exp-ing-unit", "exp-ing-price-per-package", "exp-ing-packages-count"].forEach((id) => $(id).addEventListener("input", updateExpIngPreview));
 
+// Same auto-fill idea for Packaging/Equipment/Other — price per package × line item quantity
+function updateExpSimplePreview() {
+  const price = parseFloat($("exp-simple-price-per-unit").value);
+  const count = parseFloat($("exp-simple-qty-count").value) || 1;
+  if (price >= 0 && !isNaN(price)) {
+    $("exp-amount").value = price * count;
+    $("exp-simple-price-preview").innerHTML = count > 1 ? `${fmt(price)} tk × ${count} = <b>${fmt(price * count)} tk</b>` : "";
+  } else {
+    $("exp-simple-price-preview").textContent = "";
+  }
+}
+["exp-simple-price-per-unit", "exp-simple-qty-count"].forEach((id) => $(id).addEventListener("input", updateExpSimplePreview));
+
 $("expense-form").addEventListener("submit", async (e) => {
   e.preventDefault();
   const id = $("exp-id").value;
+  const oldExpense = id ? expenses.find((x) => x.id === id) : null;
   const category = $("exp-category").value;
   const amount = parseFloat($("exp-amount").value);
   let payload;
+
+  // If this expense previously added stock to an ingredient, undo that first — whether
+  // we're about to re-apply a corrected amount or the category/item changed entirely.
+  // This is what makes editing a past purchase's quantity safe instead of double-counting.
+  async function reverseOldStockImpact() {
+    if (oldExpense && oldExpense.category === "Ingredients" && oldExpense.ingredient_id && oldExpense.units_purchased) {
+      await adjustStock(oldExpense.ingredient_id, -Number(oldExpense.units_purchased));
+    }
+  }
 
   if (category === "Ingredients") {
     const isNew = $("exp-ing-mode").querySelector("button.active").dataset.mode === "new";
@@ -1082,14 +1111,15 @@ $("expense-form").addEventListener("submit", async (e) => {
     const packaging_label = $("exp-ing-packaging-label").value.trim();
     const totalQtyPurchased = size * count;
 
-    if (!size || size <= 0) return toast("Enter the size of one package", true);
-    if (isNaN(pricePerPackage) || pricePerPackage < 0) return toast("Enter the price per package", true);
+    if (!size || size <= 0) return toast("Enter the packaging quantity", true);
+    if (isNaN(pricePerPackage) || pricePerPackage < 0) return toast("Enter the price", true);
 
     let ingredientId, ingredientName;
     try {
       if (isNew) {
         const name = $("exp-new-name").value.trim();
-        if (!name) return toast("Enter the ingredient name", true);
+        if (!name) return toast("Enter the item name", true);
+        await reverseOldStockImpact();
         const result = await saveIngredient({
           id: null,
           name,
@@ -1105,6 +1135,7 @@ $("expense-form").addEventListener("submit", async (e) => {
         ingredientName = name;
       } else {
         if (!expSelectedIngredient) return toast("Pick an existing ingredient, or switch to New Ingredient", true);
+        await reverseOldStockImpact();
         const result = await saveIngredient({
           id: expSelectedIngredient.id,
           name: expSelectedIngredient.name,
@@ -1137,12 +1168,16 @@ $("expense-form").addEventListener("submit", async (e) => {
   } else {
     const itemName = $("exp-item").value.trim();
     if (!itemName) return toast("Enter an item name", true);
+    await reverseOldStockImpact();
+    const packaging_label = $("exp-simple-packaging-label").value.trim();
+    const count = parseFloat($("exp-simple-qty-count").value) || 1;
     payload = {
       item_name: itemName,
       ingredient_id: null,
       category,
       amount,
-      quantity: $("exp-qty").value.trim() || null,
+      quantity: packaging_label ? packaging_label + (count > 1 ? ` × ${count}` : "") : count > 1 ? `× ${count}` : null,
+      units_purchased: null,
       notes: $("exp-notes").value.trim() || null,
       expense_date: $("exp-date").value,
     };

@@ -306,3 +306,26 @@ None — this was purely a form relabel/reflow.
 
 ## To install
 Re-upload `index.html`, `style.css` to GitHub. (`app.js` didn't need to change this time — all the field IDs stayed the same.)
+
+---
+
+# Phase 13 — Line Item Quantity for ALL expense categories + a real bug fix
+
+## What's new
+Every expense category (not just Ingredients) now has the same structure: **Packaging → Price (per package) → Line Item Quantity**, with the total Amount auto-calculated. So your Cups & Lids example now works directly:
+
+Packaging "Case/100EA", Price 140tk, Line Item Quantity 2 → Amount auto-fills to **280tk**.
+
+**Editing an old expense** to add a quantity you forgot the first time now works properly too — open it, the price defaults to what you originally logged (assuming it was for 1 at the time), change the Line Item Quantity, and the Amount recalculates.
+
+## A bug I found and fixed while building this
+While making quantities editable, I found that **editing an already-logged Ingredient purchase and changing its quantity would have added the stock twice** — once from the original entry, once again from the edited one — instead of correcting it. This is fixed now: editing a past ingredient purchase first undoes its original effect on stock, then applies the corrected amount. So it's now safe to go back and fix a purchase you logged wrong, without worrying about your Inventory numbers drifting.
+
+## Database changes
+None — this was a logic and form fix, no new columns needed.
+
+## To install
+Re-upload `index.html`, `app.js` to GitHub. (`style.css` didn't need changes this time.)
+
+## Try it
+Open your existing "Cups & Lids" expense (Edit ✎) — you should see Price prefilled at 140, Line Item Quantity at 1. Change it to 2, and Amount should update to 280 automatically.
